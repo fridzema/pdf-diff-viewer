@@ -146,7 +146,7 @@
       </div>
 
       <!-- Row 2: Difference View Full Width -->
-      <div>
+      <div class="relative">
         <div class="mb-3 text-sm font-semibold text-gray-700">Difference View</div>
 
         <!-- Zoom Controls for Diff View -->
@@ -155,11 +155,22 @@
         </div>
 
         <!-- Diff Canvas -->
-        <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
+        <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative">
+          <!-- Loading overlay -->
+          <div v-if="isRecomputingDiff" class="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+            <div class="flex items-center gap-2 text-sm text-gray-700">
+              <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Re-rendering at {{ diffZoom }}%...
+            </div>
+          </div>
+
+          <!-- Canvas with smart scaling -->
           <canvas
             ref="diffCanvas"
-            class="max-w-full h-auto"
-            :style="{ transform: `scale(${diffZoom / 100})`, transformOrigin: 'top left' }"
+            :style="diffCanvasStyle"
           ></canvas>
         </div>
       </div>
@@ -184,6 +195,11 @@ const { comparePdfs } = usePdfDiff()
 // Zoom state management
 const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
 const diffZoom = ref(100)   // Independent zoom for difference view
+const diffRenderZoom = ref(100) // Actual rendered zoom of diff canvas
+const isRecomputingDiff = ref(false)
+
+// Debounce diff zoom for smart re-rendering
+const debouncedDiffZoom = useDebounce(computed(() => diffZoom.value), 500)
 
 // Scroll sync state
 const syncPanningEnabled = ref(true)
@@ -211,6 +227,11 @@ const rightWrapper = computed(() => rightCanvasComponent.value?.canvasWrapper)
 
 useScrollSync(leftWrapper, rightWrapper, { enabled: syncPanningEnabled })
 
+// No CSS scaling for diff canvas - always render at native resolution
+const diffCanvasStyle = computed(() => ({
+  display: 'block'
+}))
+
 const getModeDescription = (mode: DiffMode): string => {
   const descriptions: Record<DiffMode, string> = {
     pixel: 'Highlights all different pixels in red',
@@ -220,6 +241,43 @@ const getModeDescription = (mode: DiffMode): string => {
     heatmap: 'Shows difference intensity with color gradient (blue → red)'
   }
   return descriptions[mode]
+}
+
+// Recompute diff at a specific zoom level (re-renders PDFs at new resolution)
+const recomputeDiffAtZoom = async (targetZoom: number) => {
+  if (isRecomputingDiff.value || !canCompare.value) return
+
+  isRecomputingDiff.value = true
+
+  try {
+    console.log('Recomputing diff at zoom:', targetZoom)
+
+    // Create temporary canvases at target resolution
+    const tempCanvas1 = document.createElement('canvas')
+    const tempCanvas2 = document.createElement('canvas')
+
+    const scale = targetZoom / 100
+    const { renderPdfToCanvas } = usePdfRenderer()
+
+    // Render both PDFs at the target zoom level
+    await renderPdfToCanvas(props.leftFile!, tempCanvas1, scale)
+    await renderPdfToCanvas(props.rightFile!, tempCanvas2, scale)
+
+    // Run comparison at high resolution
+    stats.value = comparePdfs(
+      tempCanvas1,
+      tempCanvas2,
+      diffCanvas.value!,
+      diffOptions.value
+    )
+
+    diffRenderZoom.value = targetZoom
+    console.log('Diff recomputed successfully at', targetZoom, '%')
+  } catch (err) {
+    console.error('Failed to recompute diff:', err)
+  } finally {
+    isRecomputingDiff.value = false
+  }
 }
 
 const runComparison = () => {
@@ -253,7 +311,11 @@ const runComparison = () => {
       diffCanvas.value,
       diffOptions.value
     )
-    console.log('Comparison completed:', stats.value)
+
+    // Update diff render zoom to match source zoom
+    diffRenderZoom.value = sourceZoom.value
+
+    console.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
   } catch (err) {
     console.error('Comparison failed:', err)
   }
@@ -306,18 +368,32 @@ watch(sourceZoom, async () => {
     // Add a small delay to ensure rendering completes
     setTimeout(() => {
       runComparison()
+      // Update diff render zoom to match source zoom
+      diffRenderZoom.value = sourceZoom.value
     }, 300)
   }
 })
 
-// diffZoom only affects the CSS scale of the diff canvas, no need to re-run comparison
+// Re-render diff view when zoom changes (debounced)
+watch(debouncedDiffZoom, async (newZoom) => {
+  if (!canCompare.value) return
+
+  // Always re-render at new zoom for native resolution (no CSS scaling)
+  if (newZoom !== diffRenderZoom.value) {
+    console.log('Diff zoom changed, triggering re-render at', newZoom, '%')
+    await recomputeDiffAtZoom(newZoom)
+  }
+})
 </script>
 
 <style scoped>
 .canvas-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
   min-height: 200px;
+  overflow: auto;
+}
+
+.canvas-wrapper canvas {
+  display: block;
 }
 </style>

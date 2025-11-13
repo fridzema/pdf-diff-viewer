@@ -12,7 +12,7 @@
 
     <!-- Canvas Display -->
     <div ref="canvasWrapperRef" class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
-      <canvas ref="canvasRef"></canvas>
+      <canvas ref="canvasRef" :style="canvasStyle"></canvas>
     </div>
 
     <!-- Loading Indicator -->
@@ -53,21 +53,74 @@ const localZoom = computed({
 })
 
 // Convert zoom percentage to scale (100% = 1.0, 150% = 1.5, etc.)
-const scale = computed(() => localZoom.value / 100)
+const immediateScale = computed(() => localZoom.value / 100)
+
+// Debounce the scale value to prevent excessive re-renders during zoom
+const debouncedScale = useDebounce(immediateScale, 300)
+
+// Track if we're in debounce period (zooming but not yet re-rendering)
+const isDebouncing = computed(() => immediateScale.value !== debouncedScale.value)
+
+// Keyboard shortcuts for zoom
+const zoomLevels = [25, 50, 75, 100, 125, 150, 200, 300, 400, 500, 750, 1000]
+
+useKeyboardShortcuts({
+  onZoomIn: () => {
+    const currentIndex = zoomLevels.indexOf(localZoom.value)
+    if (currentIndex < zoomLevels.length - 1) {
+      localZoom.value = zoomLevels[currentIndex + 1]
+    }
+  },
+  onZoomOut: () => {
+    const currentIndex = zoomLevels.indexOf(localZoom.value)
+    if (currentIndex > 0) {
+      localZoom.value = zoomLevels[currentIndex - 1]
+    }
+  },
+  onZoomReset: () => {
+    localZoom.value = 100
+  }
+})
+
+// Mouse wheel zoom (Ctrl/Cmd + Wheel)
+useWheelZoom(
+  canvasWrapperRef,
+  localZoom,
+  (newZoom) => {
+    localZoom.value = newZoom
+  },
+  { step: 10, min: 25, max: 1000 }
+)
+
+// CSS transform scale for immediate visual feedback during debounce
+const canvasTransformScale = computed(() => {
+  if (isDebouncing.value && debouncedScale.value > 0) {
+    // Scale the already-rendered canvas to provide immediate visual feedback
+    return immediateScale.value / debouncedScale.value
+  }
+  return 1
+})
+
+const canvasStyle = computed(() => ({
+  transform: canvasTransformScale.value !== 1 ? `scale(${canvasTransformScale.value})` : 'none',
+  transformOrigin: 'top left',
+  transition: 'none' // No transition for instant feedback
+}))
 
 // Watch for file or zoom changes and render
-// Use watchEffect to reactively track file, canvas, and zoom
+// Use watchEffect to reactively track file, canvas, and DEBOUNCED zoom
 watchEffect(async () => {
   const file = props.file
   const canvas = canvasRef.value
-  const currentScale = scale.value
+  const currentScale = debouncedScale.value // Use debounced value
 
   console.log('PdfCanvas watchEffect triggered:', {
     hasFile: !!file,
     hasCanvas: !!canvas,
     fileName: file?.name,
     zoom: localZoom.value,
-    scale: currentScale
+    debouncedScale: currentScale,
+    isDebouncing: isDebouncing.value
   })
 
   if (file && canvas) {

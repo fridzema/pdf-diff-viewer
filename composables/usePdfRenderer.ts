@@ -8,6 +8,9 @@ export const usePdfRenderer = () => {
   // Use shallowRef to avoid deep reactivity on PDF.js objects
   const pdfCache = shallowRef<Map<string, { pdf: any; page: any }>>(new Map())
 
+  // Track current render task for cancellation
+  let currentRenderTask: any = null
+
   /**
    * Renders the first page of a PDF file to a canvas element
    * @param file - The PDF file to render
@@ -19,6 +22,17 @@ export const usePdfRenderer = () => {
     canvas: HTMLCanvasElement,
     scale: number = 1.5
   ): Promise<void> => {
+    // Cancel any in-progress render
+    if (currentRenderTask) {
+      console.log('Cancelling previous render task')
+      try {
+        await currentRenderTask.cancel()
+      } catch (err) {
+        // Cancellation errors are expected, ignore them
+      }
+      currentRenderTask = null
+    }
+
     isLoading.value = true
     error.value = null
 
@@ -75,9 +89,19 @@ export const usePdfRenderer = () => {
         viewport: viewport,
       }
 
-      await page.render(renderContext).promise
+      // Start rendering and track the task
+      currentRenderTask = page.render(renderContext)
+
+      await currentRenderTask.promise
       console.log('PDF rendered successfully')
+      currentRenderTask = null
     } catch (err) {
+      // Check if it was a cancellation
+      if (err instanceof Error && err.name === 'RenderingCancelledException') {
+        console.log('Render was cancelled')
+        return // Don't treat cancellation as an error
+      }
+
       error.value = err instanceof Error ? err.message : 'Failed to render PDF'
       console.error('PDF rendering error:', err)
       throw err
