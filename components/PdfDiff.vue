@@ -72,6 +72,18 @@
             Convert to grayscale before comparing
           </label>
         </div>
+
+        <!-- Sync Panning Toggle -->
+        <div class="flex items-center">
+          <input
+            v-model="syncPanningEnabled"
+            type="checkbox"
+            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label class="ml-2 text-sm text-gray-700">
+            Sync panning between PDFs
+          </label>
+        </div>
       </div>
 
       <!-- Comparison Button -->
@@ -173,6 +185,9 @@ const { comparePdfs } = usePdfDiff()
 const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
 const diffZoom = ref(100)   // Independent zoom for difference view
 
+// Scroll sync state
+const syncPanningEnabled = ref(true)
+
 const diffOptions = ref<DiffOptions>({
   mode: 'pixel',
   threshold: 10,
@@ -189,6 +204,12 @@ const stats = ref<{
 const canCompare = computed(() => {
   return props.leftFile !== null && props.rightFile !== null
 })
+
+// Scroll synchronization between source PDFs
+const leftWrapper = computed(() => leftCanvasComponent.value?.canvasWrapper)
+const rightWrapper = computed(() => rightCanvasComponent.value?.canvasWrapper)
+
+useScrollSync(leftWrapper, rightWrapper, { enabled: syncPanningEnabled })
 
 const getModeDescription = (mode: DiffMode): string => {
   const descriptions: Record<DiffMode, string> = {

@@ -11,7 +11,7 @@
     </div>
 
     <!-- Canvas Display -->
-    <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
+    <div ref="canvasWrapperRef" class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
       <canvas ref="canvasRef"></canvas>
     </div>
 
@@ -43,6 +43,7 @@ const emit = defineEmits<{
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const canvasWrapperRef = ref<HTMLElement | null>(null)
 const { renderPdfToCanvas, isLoading, error } = usePdfRenderer()
 
 // Local zoom state that syncs with parent
@@ -84,12 +85,14 @@ watchEffect(async () => {
   }
 })
 
-// Expose canvas element to parent (as computed for reactive access)
+// Expose canvas element and wrapper to parent (as computed for reactive access)
 const canvasElement = computed(() => canvasRef.value)
+const canvasWrapper = computed(() => canvasWrapperRef.value)
 const isCanvasReady = computed(() => !!canvasRef.value)
 
 defineExpose({
   canvas: canvasElement,
+  canvasWrapper: canvasWrapper,
   isReady: isCanvasReady
 })
 </script>
