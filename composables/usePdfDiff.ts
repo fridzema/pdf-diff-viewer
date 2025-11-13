@@ -21,9 +21,9 @@ export const usePdfDiff = () => {
     diffCanvas: HTMLCanvasElement,
     options: DiffOptions
   ): { differenceCount: number; totalPixels: number; percentDiff: number } => {
-    const ctx1 = canvas1.getContext('2d')
-    const ctx2 = canvas2.getContext('2d')
-    const diffCtx = diffCanvas.getContext('2d')
+    const ctx1 = canvas1.getContext('2d', { willReadFrequently: true })
+    const ctx2 = canvas2.getContext('2d', { willReadFrequently: true })
+    const diffCtx = diffCanvas.getContext('2d', { willReadFrequently: true })
 
     if (!ctx1 || !ctx2 || !diffCtx) {
       throw new Error('Failed to get canvas contexts')

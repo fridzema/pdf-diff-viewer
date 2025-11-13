@@ -4,6 +4,10 @@ export const usePdfRenderer = () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
+  // Cache for loaded PDF documents to avoid reloading on zoom change
+  // Use shallowRef to avoid deep reactivity on PDF.js objects
+  const pdfCache = shallowRef<Map<string, { pdf: any; page: any }>>(new Map())
+
   /**
    * Renders the first page of a PDF file to a canvas element
    * @param file - The PDF file to render
@@ -19,22 +23,36 @@ export const usePdfRenderer = () => {
     error.value = null
 
     try {
-      console.log('Starting PDF render for:', file.name)
+      console.log('Starting PDF render for:', file.name, 'at scale:', scale)
 
-      // Convert file to ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer()
-      console.log('ArrayBuffer created, size:', arrayBuffer.byteLength)
+      let pdf, page
+      const cacheKey = file.name + file.size + file.lastModified
 
-      // Load the PDF document
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
-      const pdf = await loadingTask.promise
-      console.log('PDF loaded, pages:', pdf.numPages)
+      // Check if PDF is already loaded in cache
+      if (pdfCache.value.has(cacheKey)) {
+        console.log('Using cached PDF document')
+        const cached = pdfCache.value.get(cacheKey)!
+        pdf = cached.pdf
+        page = cached.page
+      } else {
+        // Convert file to ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer()
+        console.log('ArrayBuffer created, size:', arrayBuffer.byteLength)
 
-      // Get the first page
-      const page = await pdf.getPage(1)
-      console.log('Page 1 loaded')
+        // Load the PDF document
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+        pdf = await loadingTask.promise
+        console.log('PDF loaded, pages:', pdf.numPages)
 
-      // Calculate viewport
+        // Get the first page
+        page = await pdf.getPage(1)
+        console.log('Page 1 loaded')
+
+        // Cache the PDF and page with markRaw to prevent Vue reactivity issues
+        pdfCache.value.set(cacheKey, { pdf: markRaw(pdf), page: markRaw(page) })
+      }
+
+      // Calculate viewport with the specified scale
       const viewport = page.getViewport({ scale })
       console.log('Viewport:', viewport.width, 'x', viewport.height)
 
@@ -47,6 +65,9 @@ export const usePdfRenderer = () => {
       if (!context) {
         throw new Error('Failed to get canvas 2d context')
       }
+
+      // Clear canvas before rendering
+      context.clearRect(0, 0, canvas.width, canvas.height)
 
       // Render the page
       const renderContext = {
@@ -68,16 +89,18 @@ export const usePdfRenderer = () => {
   /**
    * Gets the dimensions of the first page of a PDF
    * @param file - The PDF file
+   * @param scale - Scale factor for dimensions (default: 1.5)
    * @returns Object with width and height
    */
   const getPdfDimensions = async (
-    file: File
+    file: File,
+    scale: number = 1.5
   ): Promise<{ width: number; height: number }> => {
     const arrayBuffer = await file.arrayBuffer()
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
     const pdf = await loadingTask.promise
     const page = await pdf.getPage(1)
-    const viewport = page.getViewport({ scale: 1.5 })
+    const viewport = page.getViewport({ scale })
 
     return {
       width: viewport.width,
@@ -85,9 +108,17 @@ export const usePdfRenderer = () => {
     }
   }
 
+  /**
+   * Clears the PDF cache (useful when files are changed)
+   */
+  const clearCache = () => {
+    pdfCache.value.clear()
+  }
+
   return {
     renderPdfToCanvas,
     getPdfDimensions,
+    clearCache,
     isLoading: readonly(isLoading),
     error: readonly(error),
   }

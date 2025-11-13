@@ -108,33 +108,47 @@
       </div>
     </div>
 
-    <!-- Canvas Display -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Left PDF -->
-      <div>
-        <PdfCanvas
-          ref="leftCanvasComponent"
-          :file="leftFile"
-          title="PDF 1"
-          :scale="1.5"
-        />
+    <!-- Canvas Display - 2 Row Layout -->
+    <div class="space-y-6">
+      <!-- Row 1: Source PDFs Side-by-Side -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left PDF -->
+        <div>
+          <PdfCanvas
+            ref="leftCanvasComponent"
+            :file="leftFile"
+            title="PDF 1"
+            v-model:zoom="sourceZoom"
+          />
+        </div>
+
+        <!-- Right PDF -->
+        <div>
+          <PdfCanvas
+            ref="rightCanvasComponent"
+            :file="rightFile"
+            title="PDF 2"
+            v-model:zoom="sourceZoom"
+          />
+        </div>
       </div>
 
-      <!-- Right PDF -->
+      <!-- Row 2: Difference View Full Width -->
       <div>
-        <PdfCanvas
-          ref="rightCanvasComponent"
-          :file="rightFile"
-          title="PDF 2"
-          :scale="1.5"
-        />
-      </div>
+        <div class="mb-3 text-sm font-semibold text-gray-700">Difference View</div>
 
-      <!-- Diff Canvas -->
-      <div>
-        <div class="mb-2 text-sm font-semibold text-gray-700">Difference View</div>
-        <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-          <canvas ref="diffCanvas" class="max-w-full h-auto"></canvas>
+        <!-- Zoom Controls for Diff View -->
+        <div class="mb-3">
+          <PdfViewerControls v-model="diffZoom" />
+        </div>
+
+        <!-- Diff Canvas -->
+        <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
+          <canvas
+            ref="diffCanvas"
+            class="max-w-full h-auto"
+            :style="{ transform: `scale(${diffZoom / 100})`, transformOrigin: 'top left' }"
+          ></canvas>
         </div>
       </div>
     </div>
@@ -154,6 +168,10 @@ const rightCanvasComponent = ref<any>(null)
 const diffCanvas = ref<HTMLCanvasElement | null>(null)
 
 const { comparePdfs } = usePdfDiff()
+
+// Zoom state management
+const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
+const diffZoom = ref(100)   // Independent zoom for difference view
 
 const diffOptions = ref<DiffOptions>({
   mode: 'pixel',
@@ -255,6 +273,23 @@ watch([() => props.leftFile, () => props.rightFile], async () => {
     checkAndRun()
   }
 })
+
+// Re-run comparison when source zoom changes (after PDFs have been rendered)
+watch(sourceZoom, async () => {
+  if (canCompare.value) {
+    console.log('Source zoom changed, waiting for re-render before comparison...')
+
+    // Wait for PDFs to re-render at new zoom level
+    await nextTick()
+
+    // Add a small delay to ensure rendering completes
+    setTimeout(() => {
+      runComparison()
+    }, 300)
+  }
+})
+
+// diffZoom only affects the CSS scale of the diff canvas, no need to re-run comparison
 </script>
 
 <style scoped>

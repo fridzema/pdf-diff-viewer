@@ -1,0 +1,78 @@
+<template>
+  <div class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+    <!-- Zoom Out Button -->
+    <button
+      @click="decreaseZoom"
+      :disabled="currentZoom <= zoomLevels[0]"
+      class="p-2 rounded-md bg-white border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      title="Zoom Out"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+      </svg>
+    </button>
+
+    <!-- Zoom Percentage Dropdown -->
+    <select
+      :value="currentZoom"
+      @change="handleZoomChange"
+      class="px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+    >
+      <option v-for="level in zoomLevels" :key="level" :value="level">
+        {{ level }}%
+      </option>
+    </select>
+
+    <!-- Zoom In Button -->
+    <button
+      @click="increaseZoom"
+      :disabled="currentZoom >= zoomLevels[zoomLevels.length - 1]"
+      class="p-2 rounded-md bg-white border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      title="Zoom In"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+      </svg>
+    </button>
+
+    <!-- Current Zoom Display (optional, for clarity) -->
+    <span class="text-sm text-gray-600 ml-1">
+      {{ currentZoom }}%
+    </span>
+  </div>
+</template>
+
+<script setup lang="ts">
+const props = defineProps<{
+  modelValue: number // Current zoom level as percentage (e.g., 100)
+}>()
+
+const emit = defineEmits<{
+  'update:modelValue': [value: number]
+}>()
+
+// Available zoom levels (in percentages)
+const zoomLevels = [25, 50, 75, 100, 125, 150, 200, 300, 400, 500, 750, 1000]
+
+const currentZoom = computed(() => props.modelValue)
+
+const handleZoomChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement
+  const newZoom = parseInt(target.value)
+  emit('update:modelValue', newZoom)
+}
+
+const increaseZoom = () => {
+  const currentIndex = zoomLevels.indexOf(currentZoom.value)
+  if (currentIndex < zoomLevels.length - 1) {
+    emit('update:modelValue', zoomLevels[currentIndex + 1])
+  }
+}
+
+const decreaseZoom = () => {
+  const currentIndex = zoomLevels.indexOf(currentZoom.value)
+  if (currentIndex > 0) {
+    emit('update:modelValue', zoomLevels[currentIndex - 1])
+  }
+}
+</script>

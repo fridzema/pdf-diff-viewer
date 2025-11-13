@@ -1,11 +1,21 @@
 <template>
   <div class="pdf-canvas-container">
-    <div v-if="title" class="mb-2 text-sm font-semibold text-gray-700">
+    <!-- Title -->
+    <div v-if="title" class="mb-3 text-sm font-semibold text-gray-700">
       {{ title }}
     </div>
-    <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-      <canvas ref="canvasRef" class="max-w-full h-auto"></canvas>
+
+    <!-- Zoom Controls Toolbar -->
+    <div class="mb-3">
+      <PdfViewerControls v-model="localZoom" />
     </div>
+
+    <!-- Canvas Display -->
+    <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
+      <canvas ref="canvasRef"></canvas>
+    </div>
+
+    <!-- Loading Indicator -->
     <div v-if="isLoading" class="mt-2 text-sm text-gray-600 flex items-center">
       <svg class="animate-spin h-4 w-4 mr-2 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -13,6 +23,8 @@
       </svg>
       Rendering PDF...
     </div>
+
+    <!-- Error Display -->
     <div v-if="error" class="mt-2 text-sm text-red-600">
       Error: {{ error }}
     </div>
@@ -23,31 +35,47 @@
 const props = defineProps<{
   file: File | null
   title?: string
-  scale?: number
+  zoom: number // Zoom level as percentage (e.g., 100)
+}>()
+
+const emit = defineEmits<{
+  'update:zoom': [value: number]
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const { renderPdfToCanvas, isLoading, error } = usePdfRenderer()
 
-// Watch for file changes and render
-// Use watchEffect to reactively track both file and canvas availability
+// Local zoom state that syncs with parent
+const localZoom = computed({
+  get: () => props.zoom,
+  set: (value) => emit('update:zoom', value)
+})
+
+// Convert zoom percentage to scale (100% = 1.0, 150% = 1.5, etc.)
+const scale = computed(() => localZoom.value / 100)
+
+// Watch for file or zoom changes and render
+// Use watchEffect to reactively track file, canvas, and zoom
 watchEffect(async () => {
   const file = props.file
   const canvas = canvasRef.value
+  const currentScale = scale.value
 
   console.log('PdfCanvas watchEffect triggered:', {
     hasFile: !!file,
     hasCanvas: !!canvas,
-    fileName: file?.name
+    fileName: file?.name,
+    zoom: localZoom.value,
+    scale: currentScale
   })
 
   if (file && canvas) {
     // Wait for next tick to ensure DOM is fully ready
     await nextTick()
-    console.log('Attempting to render PDF to canvas...')
+    console.log('Attempting to render PDF to canvas at scale:', currentScale)
 
     try {
-      await renderPdfToCanvas(file, canvas, props.scale || 1.5)
+      await renderPdfToCanvas(file, canvas, currentScale)
     } catch (err) {
       console.error('Failed to render PDF in PdfCanvas:', err)
     }
@@ -69,8 +97,13 @@ defineExpose({
 <style scoped>
 .canvas-wrapper {
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   min-height: 200px;
+  max-height: 800px;
+}
+
+canvas {
+  display: block;
 }
 </style>
