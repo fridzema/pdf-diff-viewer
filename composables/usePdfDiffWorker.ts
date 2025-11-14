@@ -100,11 +100,17 @@ export function usePdfDiffWorker() {
 
       // Send data to worker
       // Use transferable objects for better performance
+      // Convert options to plain object to avoid cloning issues with Vue reactivity
       worker.value.postMessage(
         {
           imageData1: imageData1.data,
           imageData2: imageData2.data,
-          options,
+          options: {
+            mode: options.mode,
+            threshold: options.threshold,
+            overlayOpacity: options.overlayOpacity,
+            useGrayscale: options.useGrayscale,
+          },
           width,
           height,
         },
