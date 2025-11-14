@@ -55,12 +55,3 @@ static_sites:
     # Routes - serve from root path
     routes:
       - path: /
-
-# Ingress rules - updated to serve from root
-ingress:
-  rules:
-    - component:
-        name: pdf-diff-viewer2
-      match:
-        path:
-          prefix: /

@@ -64,15 +64,9 @@ error_document: index.html
 ```yaml
 routes:
   - path: /
-
-ingress:
-  rules:
-    - component:
-        name: pdf-diff-viewer2
-      match:
-        path:
-          prefix: /
 ```
+
+Note: Component-level `routes` and app-level `ingress` are mutually exclusive. We use component routes for simplicity.
 
 ## After Applying
 
