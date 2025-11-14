@@ -6,8 +6,12 @@
     @dragover.prevent="isDragOver = true"
     @dragleave.prevent="isDragOver = false"
   >
-    <div class="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors"
-         :class="isDragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'">
+    <div
+      class="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors"
+      :class="
+        isDragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'
+      "
+    >
       <svg
         class="w-12 h-12 mb-4 text-gray-400"
         fill="none"
@@ -55,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
+defineProps<{
   label: string
 }>()
 
@@ -80,7 +84,8 @@ const validateFile = (file: File): boolean => {
     return false
   }
 
-  if (file.size > 50 * 1024 * 1024) { // 50MB limit
+  if (file.size > 50 * 1024 * 1024) {
+    // 50MB limit
     error.value = 'File size must be less than 50MB'
     return false
   }

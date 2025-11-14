@@ -59,11 +59,13 @@ pdf-diff/
 ### Installation
 
 1. Clone or navigate to the project directory:
+
 ```bash
 cd pdf-diff
 ```
 
 2. Install dependencies:
+
 ```bash
 bun install
 ```
@@ -112,18 +114,23 @@ bun run preview
 ## Comparison Modes Explained
 
 ### Pixel Difference
+
 Compares each pixel exactly. Any difference is highlighted in red. Most strict mode.
 
 ### Threshold Mode
+
 Only highlights pixels where the color difference exceeds the threshold value. Useful for ignoring minor anti-aliasing differences.
 
 ### Grayscale Diff
+
 Converts both PDFs to grayscale before comparing. Useful when you only care about structural differences, not color changes.
 
 ### Color Overlay
+
 Blends both PDFs together, with differences highlighted in red with adjustable opacity. Good for seeing what's changed while maintaining context.
 
 ### Heatmap
+
 Shows difference intensity using a color gradient (blue for identical, red for very different). Best for visualizing the degree of difference across the document.
 
 ## Limitations
@@ -144,6 +151,7 @@ Shows difference intensity using a color gradient (blue for identical, red for v
 ## Browser Compatibility
 
 Works in all modern browsers that support:
+
 - HTML5 Canvas
 - File API
 - ES6+ JavaScript
@@ -152,6 +160,7 @@ Works in all modern browsers that support:
 ## Future Enhancements
 
 Potential improvements for this proof-of-concept:
+
 - Multi-page comparison support
 - Export diff results as images
 - Zoom and pan controls

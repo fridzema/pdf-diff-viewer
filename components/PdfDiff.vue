@@ -7,9 +7,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Diff Mode Selection -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Comparison Mode
-          </label>
+          <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
           <select
             v-model="diffOptions.mode"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -68,9 +66,7 @@
             class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
             @change="runComparison"
           />
-          <label class="ml-2 text-sm text-gray-700">
-            Convert to grayscale before comparing
-          </label>
+          <label class="ml-2 text-sm text-gray-700"> Convert to grayscale before comparing </label>
         </div>
 
         <!-- Sync Panning Toggle -->
@@ -80,18 +76,16 @@
             type="checkbox"
             class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
           />
-          <label class="ml-2 text-sm text-gray-700">
-            Sync panning between PDFs
-          </label>
+          <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
         </div>
       </div>
 
       <!-- Comparison Button -->
       <div class="mt-6">
         <button
-          @click="runComparison"
           :disabled="!canCompare"
           class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+          @click="runComparison"
         >
           Run Comparison
         </button>
@@ -103,16 +97,22 @@
         <div class="grid grid-cols-3 gap-4 text-sm">
           <div>
             <span class="text-gray-600">Different Pixels:</span>
-            <span class="font-semibold text-gray-900 ml-2">{{ stats.differenceCount.toLocaleString() }}</span>
+            <span class="font-semibold text-gray-900 ml-2">{{
+              stats.differenceCount.toLocaleString()
+            }}</span>
           </div>
           <div>
             <span class="text-gray-600">Total Pixels:</span>
-            <span class="font-semibold text-gray-900 ml-2">{{ stats.totalPixels.toLocaleString() }}</span>
+            <span class="font-semibold text-gray-900 ml-2">{{
+              stats.totalPixels.toLocaleString()
+            }}</span>
           </div>
           <div>
             <span class="text-gray-600">Difference:</span>
-            <span class="font-semibold ml-2"
-                  :class="stats.percentDiff > 5 ? 'text-red-600' : 'text-green-600'">
+            <span
+              class="font-semibold ml-2"
+              :class="stats.percentDiff > 5 ? 'text-red-600' : 'text-green-600'"
+            >
               {{ stats.percentDiff.toFixed(2) }}%
             </span>
           </div>
@@ -122,27 +122,59 @@
 
     <!-- Canvas Display - 2 Row Layout -->
     <div class="space-y-6">
-      <!-- Row 1: Source PDFs Side-by-Side -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Left PDF -->
-        <div>
-          <PdfCanvas
-            ref="leftCanvasComponent"
-            :file="leftFile"
-            title="PDF 1"
-            v-model:zoom="sourceZoom"
-          />
-        </div>
+      <!-- Row 1: Source PDFs Side-by-Side (Collapsible) -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <!-- Collapsible Header -->
+        <button
+          class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          @click="sourcePdfsExpanded = !sourcePdfsExpanded"
+        >
+          <h3 class="text-lg font-semibold text-gray-800">Source PDFs</h3>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-gray-600 transition-transform duration-200"
+            :class="{ 'rotate-180': !sourcePdfsExpanded }"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
 
-        <!-- Right PDF -->
-        <div>
-          <PdfCanvas
-            ref="rightCanvasComponent"
-            :file="rightFile"
-            title="PDF 2"
-            v-model:zoom="sourceZoom"
-          />
-        </div>
+        <!-- Collapsible Content -->
+        <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+          <div v-show="sourcePdfsExpanded" class="overflow-hidden">
+            <div class="p-6 pt-2">
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Left PDF -->
+                <div>
+                  <PdfCanvas
+                    ref="leftCanvasComponent"
+                    v-model:zoom="sourceZoom"
+                    :file="leftFile"
+                    title="PDF 1"
+                  />
+                </div>
+
+                <!-- Right PDF -->
+                <div>
+                  <PdfCanvas
+                    ref="rightCanvasComponent"
+                    v-model:zoom="sourceZoom"
+                    :file="rightFile"
+                    title="PDF 2"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
       </div>
 
       <!-- Row 2: Difference View Full Width -->
@@ -155,23 +187,41 @@
         </div>
 
         <!-- Diff Canvas -->
-        <div class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative">
+        <div
+          class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative"
+        >
           <!-- Loading overlay -->
-          <div v-if="isRecomputingDiff" class="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+          <div
+            v-if="isRecomputingDiff"
+            class="absolute inset-0 bg-white/80 flex items-center justify-center z-10"
+          >
             <div class="flex items-center gap-2 text-sm text-gray-700">
-              <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <svg
+                class="animate-spin h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               Re-rendering at {{ diffZoom }}%...
             </div>
           </div>
 
           <!-- Canvas with smart scaling -->
-          <canvas
-            ref="diffCanvas"
-            :style="diffCanvasStyle"
-          ></canvas>
+          <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
         </div>
       </div>
     </div>
@@ -194,21 +244,27 @@ const { comparePdfs } = usePdfDiff()
 
 // Zoom state management
 const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
-const diffZoom = ref(100)   // Independent zoom for difference view
+const diffZoom = ref(100) // Independent zoom for difference view
 const diffRenderZoom = ref(100) // Actual rendered zoom of diff canvas
 const isRecomputingDiff = ref(false)
 
 // Debounce diff zoom for smart re-rendering
-const debouncedDiffZoom = useDebounce(computed(() => diffZoom.value), 500)
+const debouncedDiffZoom = useDebounce(
+  computed(() => diffZoom.value),
+  500
+)
 
 // Scroll sync state
 const syncPanningEnabled = ref(true)
+
+// Collapsible source PDFs state (open by default)
+const sourcePdfsExpanded = ref(true)
 
 const diffOptions = ref<DiffOptions>({
   mode: 'pixel',
   threshold: 10,
   overlayOpacity: 0.5,
-  useGrayscale: false
+  useGrayscale: false,
 })
 
 const stats = ref<{
@@ -229,8 +285,32 @@ useScrollSync(leftWrapper, rightWrapper, { enabled: syncPanningEnabled })
 
 // No CSS scaling for diff canvas - always render at native resolution
 const diffCanvasStyle = computed(() => ({
-  display: 'block'
+  display: 'block',
 }))
+
+// Transition handlers for smooth collapse/expand animation
+const onEnter = (el: HTMLElement) => {
+  el.style.height = '0'
+  el.style.opacity = '0'
+}
+
+const onAfterEnter = (el: HTMLElement) => {
+  el.style.height = 'auto'
+  el.style.opacity = '1'
+  el.style.transition = 'height 0.3s ease-out, opacity 0.3s ease-out'
+}
+
+const onLeave = (el: HTMLElement) => {
+  el.style.height = `${el.scrollHeight}px`
+  el.style.opacity = '1'
+
+  // Force reflow (intentionally reading offsetHeight to trigger layout)
+  void el.offsetHeight
+
+  el.style.transition = 'height 0.3s ease-in, opacity 0.3s ease-in'
+  el.style.height = '0'
+  el.style.opacity = '0'
+}
 
 const getModeDescription = (mode: DiffMode): string => {
   const descriptions: Record<DiffMode, string> = {
@@ -238,7 +318,7 @@ const getModeDescription = (mode: DiffMode): string => {
     threshold: 'Only highlights pixels that differ by more than the threshold',
     grayscale: 'Converts to grayscale before comparing',
     overlay: 'Blends both PDFs with red highlights for differences',
-    heatmap: 'Shows difference intensity with color gradient (blue → red)'
+    heatmap: 'Shows difference intensity with color gradient (blue → red)',
   }
   return descriptions[mode]
 }
@@ -264,12 +344,7 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
     await renderPdfToCanvas(props.rightFile!, tempCanvas2, scale)
 
     // Run comparison at high resolution
-    stats.value = comparePdfs(
-      tempCanvas1,
-      tempCanvas2,
-      diffCanvas.value!,
-      diffOptions.value
-    )
+    stats.value = comparePdfs(tempCanvas1, tempCanvas2, diffCanvas.value!, diffOptions.value)
 
     diffRenderZoom.value = targetZoom
     console.log('Diff recomputed successfully at', targetZoom, '%')
@@ -292,25 +367,20 @@ const runComparison = () => {
     hasRightCanvas: !!rightCanvas,
     hasDiffCanvas: !!diffCanvas.value,
     leftCanvasSize: leftCanvas ? `${leftCanvas.width}x${leftCanvas.height}` : 'N/A',
-    rightCanvasSize: rightCanvas ? `${rightCanvas.width}x${rightCanvas.height}` : 'N/A'
+    rightCanvasSize: rightCanvas ? `${rightCanvas.width}x${rightCanvas.height}` : 'N/A',
   })
 
   if (!leftCanvas || !rightCanvas || !diffCanvas.value) {
     console.error('Canvas elements not ready:', {
       leftCanvas: !!leftCanvas,
       rightCanvas: !!rightCanvas,
-      diffCanvas: !!diffCanvas.value
+      diffCanvas: !!diffCanvas.value,
     })
     return
   }
 
   try {
-    stats.value = comparePdfs(
-      leftCanvas,
-      rightCanvas,
-      diffCanvas.value,
-      diffOptions.value
-    )
+    stats.value = comparePdfs(leftCanvas, rightCanvas, diffCanvas.value, diffOptions.value)
 
     // Update diff render zoom to match source zoom
     diffRenderZoom.value = sourceZoom.value
@@ -339,7 +409,7 @@ watch([() => props.leftFile, () => props.rightFile], async () => {
 
       console.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
         leftReady,
-        rightReady
+        rightReady,
       })
 
       if (leftReady && rightReady) {

@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Development service with hot reload
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    container_name: pdf-diff-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      - /app/node_modules
+      - /app/.nuxt
+    environment:
+      - NODE_ENV=development
+    command: bun run dev
+    restart: unless-stopped
+    networks:
+      - pdf-diff-network
+
+  # Production service
+  prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: pdf-diff-prod
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - pdf-diff-network
+    healthcheck:
+      test: ["CMD", "bun", "run", "-e", "fetch('http://localhost:3000/').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+  # Nginx reverse proxy (optional, for production simulation)
+  nginx:
+    image: nginx:alpine
+    container_name: pdf-diff-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - prod
+    networks:
+      - pdf-diff-network
+    profiles:
+      - with-nginx
+
+networks:
+  pdf-diff-network:
+    driver: bridge

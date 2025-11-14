@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(bun install:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(bun run test:*)",
+      "Bash(bun add:*)",
+      "Bash(bunx husky init)",
+      "Bash(cat:*)",
+      "Bash(bun run format:*)",
+      "Bash(cp:*)",
+      "Bash(bun run dev)",
+      "Bash(bun run lint:*)",
+      "Bash(bun run lint:fix)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.nuxt/
+dist/
+.output/
+
+# Build artifacts
+*.min.js
+*.min.css
+
+# Logs
+*.log
+
+# Lock files
+package-lock.json
+yarn.lock
+bun.lockb
+
+# Coverage
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/

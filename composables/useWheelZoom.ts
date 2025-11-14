@@ -1,3 +1,5 @@
+import { watch, onUnmounted, type Ref } from 'vue'
+
 /**
  * Composable for handling mouse wheel zoom (Ctrl/Cmd + Wheel)
  * Standard behavior in PDF viewers and image editors
@@ -61,6 +63,6 @@ export function useWheelZoom(
   })
 
   return {
-    handleWheel
+    handleWheel,
   }
 }

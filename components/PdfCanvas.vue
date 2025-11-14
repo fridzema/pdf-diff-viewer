@@ -11,23 +11,40 @@
     </div>
 
     <!-- Canvas Display -->
-    <div ref="canvasWrapperRef" class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50">
+    <div
+      ref="canvasWrapperRef"
+      class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50"
+    >
       <canvas ref="canvasRef" :style="canvasStyle"></canvas>
     </div>
 
     <!-- Loading Indicator -->
     <div v-if="isLoading" class="mt-2 text-sm text-gray-600 flex items-center">
-      <svg class="animate-spin h-4 w-4 mr-2 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      <svg
+        class="animate-spin h-4 w-4 mr-2 text-primary-600"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
       </svg>
       Rendering PDF...
     </div>
 
     <!-- Error Display -->
-    <div v-if="error" class="mt-2 text-sm text-red-600">
-      Error: {{ error }}
-    </div>
+    <div v-if="error" class="mt-2 text-sm text-red-600">Error: {{ error }}</div>
   </div>
 </template>
 
@@ -49,7 +66,7 @@ const { renderPdfToCanvas, isLoading, error } = usePdfRenderer()
 // Local zoom state that syncs with parent
 const localZoom = computed({
   get: () => props.zoom,
-  set: (value) => emit('update:zoom', value)
+  set: (value) => emit('update:zoom', value),
 })
 
 // Convert zoom percentage to scale (100% = 1.0, 150% = 1.5, etc.)
@@ -79,7 +96,7 @@ useKeyboardShortcuts({
   },
   onZoomReset: () => {
     localZoom.value = 100
-  }
+  },
 })
 
 // Mouse wheel zoom (Ctrl/Cmd + Wheel)
@@ -104,7 +121,7 @@ const canvasTransformScale = computed(() => {
 const canvasStyle = computed(() => ({
   transform: canvasTransformScale.value !== 1 ? `scale(${canvasTransformScale.value})` : 'none',
   transformOrigin: 'top left',
-  transition: 'none' // No transition for instant feedback
+  transition: 'none', // No transition for instant feedback
 }))
 
 // Watch for file or zoom changes and render
@@ -120,7 +137,7 @@ watchEffect(async () => {
     fileName: file?.name,
     zoom: localZoom.value,
     debouncedScale: currentScale,
-    isDebouncing: isDebouncing.value
+    isDebouncing: isDebouncing.value,
   })
 
   if (file && canvas) {
@@ -146,7 +163,7 @@ const isCanvasReady = computed(() => !!canvasRef.value)
 defineExpose({
   canvas: canvasElement,
   canvasWrapper: canvasWrapper,
-  isReady: isCanvasReady
+  isReady: isCanvasReady,
 })
 </script>
 

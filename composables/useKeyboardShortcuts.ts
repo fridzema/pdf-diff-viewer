@@ -1,3 +1,5 @@
+import { onMounted, onUnmounted } from 'vue'
+
 /**
  * Composable for handling keyboard shortcuts for zoom control
  * Supports standard PDF viewer shortcuts: Ctrl/Cmd + Plus/Minus/0/9
@@ -57,6 +59,6 @@ export function useKeyboardShortcuts(callbacks: KeyboardShortcutCallbacks) {
 
   return {
     // Return the handler in case it needs to be managed externally
-    handleKeydown
+    handleKeydown,
   }
 }

@@ -27,7 +27,7 @@ export const usePdfRenderer = () => {
       console.log('Cancelling previous render task')
       try {
         await currentRenderTask.cancel()
-      } catch (err) {
+      } catch {
         // Cancellation errors are expected, ignore them
       }
       currentRenderTask = null
@@ -95,7 +95,7 @@ export const usePdfRenderer = () => {
       await currentRenderTask.promise
       console.log('PDF rendered successfully')
       currentRenderTask = null
-    } catch (err) {
+    } catch {
       // Check if it was a cancellation
       if (err instanceof Error && err.name === 'RenderingCancelledException') {
         console.log('Render was cancelled')

@@ -79,7 +79,7 @@ export const usePdfDiff = () => {
     data1: ImageData,
     data2: ImageData,
     diffData: ImageData,
-    options: DiffOptions
+    _options: DiffOptions
   ): number => {
     let count = 0
     const pixels = data1.data.length

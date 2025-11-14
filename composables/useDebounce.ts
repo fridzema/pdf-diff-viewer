@@ -1,3 +1,5 @@
+import { ref, watch, onUnmounted, readonly, type Ref } from 'vue'
+
 /**
  * Composable for creating a debounced ref that delays updates
  * Useful for expensive operations like PDF rendering
@@ -29,17 +31,14 @@ export function useDebouncedRef<T>(
 
   return {
     immediateValue,
-    debouncedValue
+    debouncedValue,
   }
 }
 
 /**
  * Alternative: Watch an existing ref and return debounced version
  */
-export function useDebounce<T>(
-  value: Ref<T>,
-  delay: number = 300
-): Ref<T> {
+export function useDebounce<T>(value: Ref<T>, delay: number = 300): Ref<T> {
   const debouncedValue = ref(value.value) as Ref<T>
   const timeout = ref<NodeJS.Timeout | null>(null)
 

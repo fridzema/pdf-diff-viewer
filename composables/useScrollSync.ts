@@ -1,3 +1,5 @@
+import { ref, watch, onUnmounted, readonly, type Ref } from 'vue'
+
 /**
  * Composable for synchronizing scroll position between two elements
  * Useful for keeping two PDF viewers in sync when panning
@@ -20,17 +22,12 @@ export function useScrollSync(
 
     try {
       // Calculate proportional scaling if containers have different sizes
-      const scaleX = source.scrollWidth > 0
-        ? target.scrollWidth / source.scrollWidth
-        : 1
-      const scaleY = source.scrollHeight > 0
-        ? target.scrollHeight / source.scrollHeight
-        : 1
+      const scaleX = source.scrollWidth > 0 ? target.scrollWidth / source.scrollWidth : 1
+      const scaleY = source.scrollHeight > 0 ? target.scrollHeight / source.scrollHeight : 1
 
       // Apply scaled scroll position
       target.scrollLeft = Math.round(source.scrollLeft * scaleX)
       target.scrollTop = Math.round(source.scrollTop * scaleY)
-
     } finally {
       // Use requestAnimationFrame to prevent scroll fighting
       requestAnimationFrame(() => {
@@ -98,6 +95,6 @@ export function useScrollSync(
 
   return {
     enabled,
-    syncing: readonly(syncing)
+    syncing: readonly(syncing),
   }
 }
