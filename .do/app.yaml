@@ -22,6 +22,9 @@ static_sites:
     build_command: npm install && npm run copy-worker && npm run generate
     output_dir: .output/public
 
+    # SPA fallback - serve index.html for all routes
+    error_document: index.html
+
     # Routing
     routes:
       - path: /
