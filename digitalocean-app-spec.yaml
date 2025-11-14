@@ -34,7 +34,8 @@ static_sites:
       deploy_on_push: true
 
     # Build configuration - CRITICAL SETTINGS
-    build_command: npm install && npm run copy-worker && npm run generate
+    # Note: buildpack handles npm install, postinstall handles copy-worker
+    build_command: npm run generate
     output_dir: .output/public
 
     # SPA fallback routing - FIXES 404 ERRORS

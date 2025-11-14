@@ -49,9 +49,11 @@ doctl apps create-deployment YOUR-APP-ID
 ### Added Build Configuration
 
 ```yaml
-build_command: npm install && npm run copy-worker && npm run generate
+build_command: npm run generate
 output_dir: .output/public
 ```
+
+Note: The buildpack automatically runs `npm install`, and the `postinstall` script handles `copy-worker`.
 
 ### Added SPA Fallback (Fixes 404)
 

@@ -18,7 +18,7 @@
     "format": "prettier --write \"**/*.{js,ts,vue,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,ts,vue,json,md}\"",
     "typecheck": "nuxt typecheck",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@nuxt/ui": "^2.18.4",
