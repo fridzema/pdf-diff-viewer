@@ -3,6 +3,17 @@ import { logger } from '~/utils/logger'
 
 // Maximum number of PDFs to cache (LRU eviction)
 const MAX_CACHE_SIZE = 10
+// Maximum number of rendered bitmaps to cache per PDF (zoom levels)
+const MAX_BITMAPS_PER_PDF = 3
+
+// Bitmap cache entry structure
+interface BitmapCacheEntry {
+  bitmap: ImageBitmap
+  scale: number
+  width: number
+  height: number
+  timestamp: number
+}
 
 export const usePdfRenderer = () => {
   const isLoading = ref(false)
@@ -15,8 +26,77 @@ export const usePdfRenderer = () => {
   // Track access order for LRU eviction (most recently used = end of array)
   const cacheAccessOrder = ref<string[]>([])
 
+  // Cache for rendered bitmaps to avoid re-rendering at same zoom
+  // Key: PDF cache key, Value: array of bitmap entries (LRU sorted)
+  const bitmapCache = shallowRef<Map<string, BitmapCacheEntry[]>>(new Map())
+
   // Track current render task for cancellation
   let currentRenderTask: any = null
+
+  /**
+   * Rounds scale to zoom buckets (25% increments) to increase cache hits
+   */
+  const roundToZoomBucket = (scale: number): number => {
+    return Math.round(scale * 4) / 4 // Round to nearest 0.25
+  }
+
+  /**
+   * Finds a cached bitmap for a given PDF and scale
+   */
+  const findCachedBitmap = (key: string, scale: number): BitmapCacheEntry | null => {
+    const bucketScale = roundToZoomBucket(scale)
+    const entries = bitmapCache.value.get(key)
+    if (!entries) return null
+
+    return entries.find((entry) => entry.scale === bucketScale) || null
+  }
+
+  /**
+   * Adds a bitmap to the cache with LRU eviction
+   */
+  const cacheBitmap = async (
+    key: string,
+    bitmap: ImageBitmap,
+    scale: number,
+    width: number,
+    height: number
+  ) => {
+    const bucketScale = roundToZoomBucket(scale)
+    const entry: BitmapCacheEntry = {
+      bitmap,
+      scale: bucketScale,
+      width,
+      height,
+      timestamp: Date.now(),
+    }
+
+    let entries = bitmapCache.value.get(key)
+    if (!entries) {
+      entries = []
+      bitmapCache.value.set(key, entries)
+    }
+
+    // Remove existing entry for this scale if present
+    const existingIndex = entries.findIndex((e) => e.scale === bucketScale)
+    if (existingIndex !== -1) {
+      entries[existingIndex].bitmap.close()
+      entries.splice(existingIndex, 1)
+    }
+
+    // Add new entry
+    entries.push(entry)
+
+    // Sort by timestamp (most recent last)
+    entries.sort((a, b) => a.timestamp - b.timestamp)
+
+    // Evict oldest if over limit
+    while (entries.length > MAX_BITMAPS_PER_PDF) {
+      const oldest = entries.shift()
+      if (oldest) {
+        oldest.bitmap.close()
+      }
+    }
+  }
 
   /**
    * Evicts a PDF from cache and properly destroys it to free memory
@@ -32,6 +112,13 @@ export const usePdfRenderer = () => {
       }
     }
     pdfCache.value.delete(key)
+
+    // Clear bitmap cache for this PDF
+    const bitmaps = bitmapCache.value.get(key)
+    if (bitmaps) {
+      bitmaps.forEach((entry) => entry.bitmap.close())
+      bitmapCache.value.delete(key)
+    }
 
     // Remove from access order tracking
     const index = cacheAccessOrder.value.indexOf(key)
@@ -83,6 +170,32 @@ export const usePdfRenderer = () => {
 
       let pdf, page
       const cacheKey = file.name + file.size + file.lastModified
+
+      // Check bitmap cache first (fastest path - 5-20× faster than PDF.js render)
+      const cachedBitmap = findCachedBitmap(cacheKey, scale)
+      if (cachedBitmap) {
+        logger.log('Bitmap cache HIT for scale:', scale, '(bucket:', cachedBitmap.scale, ')')
+
+        // Set canvas dimensions to match cached bitmap
+        canvas.width = cachedBitmap.width
+        canvas.height = cachedBitmap.height
+
+        // Get canvas context
+        const context = canvas.getContext('2d')
+        if (!context) {
+          throw new Error('Failed to get canvas 2d context')
+        }
+
+        // Draw cached bitmap to canvas (very fast)
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(cachedBitmap.bitmap, 0, 0)
+
+        logger.log('Bitmap drawn from cache (fast path)')
+        isLoading.value = false
+        return // Early return - no PDF.js rendering needed
+      }
+
+      logger.log('Bitmap cache MISS - will render via PDF.js and cache result')
 
       // Check if PDF is already loaded in cache
       if (pdfCache.value.has(cacheKey)) {
@@ -150,6 +263,16 @@ export const usePdfRenderer = () => {
       await currentRenderTask.promise
       logger.log('PDF rendered successfully')
       currentRenderTask = null
+
+      // Create ImageBitmap from canvas and cache it for future use
+      try {
+        const bitmap = await createImageBitmap(canvas)
+        await cacheBitmap(cacheKey, bitmap, scale, canvas.width, canvas.height)
+        logger.log('Bitmap cached for scale:', scale, '(bucket:', roundToZoomBucket(scale), ')')
+      } catch (bitmapErr) {
+        // Non-fatal: caching failed but render succeeded
+        logger.warn('Failed to cache bitmap:', bitmapErr)
+      }
     } catch (err) {
       // Check if it was a cancellation
       if (err instanceof Error && err.name === 'RenderingCancelledException') {
@@ -202,7 +325,19 @@ export const usePdfRenderer = () => {
       }
     }
 
+    // Close all cached bitmaps
+    for (const [_key, entries] of bitmapCache.value.entries()) {
+      for (const entry of entries) {
+        try {
+          entry.bitmap.close()
+        } catch (err) {
+          logger.warn('Error closing bitmap during cache clear:', err)
+        }
+      }
+    }
+
     pdfCache.value.clear()
+    bitmapCache.value.clear()
     cacheAccessOrder.value = []
   }
 

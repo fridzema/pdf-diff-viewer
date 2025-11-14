@@ -263,6 +263,11 @@ const rightCanvasComponent = ref<any>(null)
 const diffCanvas = ref<HTMLCanvasElement | null>(null)
 
 const { comparePdfsAsync, isProcessing } = usePdfDiffWorker()
+const { renderPdfToCanvas } = usePdfRenderer()
+
+// Reusable temp canvases for diff recomputation (Phase 1.2 optimization)
+const tempCanvas1 = ref<HTMLCanvasElement>(document.createElement('canvas'))
+const tempCanvas2 = ref<HTMLCanvasElement>(document.createElement('canvas'))
 
 // Zoom state management
 const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
@@ -279,6 +284,9 @@ const debouncedDiffZoom = useDebounce(
   computed(() => diffZoom.value),
   500
 )
+
+// Track if diff zoom is in debounce period (for CSS-scale fallback)
+const isDiffDebouncing = computed(() => diffZoom.value !== debouncedDiffZoom.value)
 
 // Scroll sync state
 const syncPanningEnabled = ref(true)
@@ -309,10 +317,19 @@ const rightWrapper = computed(() => rightCanvasComponent.value?.canvasWrapper)
 
 useScrollSync(leftWrapper, rightWrapper, { enabled: syncPanningEnabled })
 
-// No CSS scaling for diff canvas - always render at native resolution
-const diffCanvasStyle = computed(() => ({
-  display: 'block',
-}))
+// CSS scaling for diff canvas during debounce (instant zoom feedback)
+const diffCanvasStyle = computed(() => {
+  // Calculate scale ratio for immediate visual feedback
+  const transformScale =
+    isDiffDebouncing.value && diffRenderZoom.value > 0 ? diffZoom.value / diffRenderZoom.value : 1
+
+  return {
+    display: 'block',
+    transform: transformScale !== 1 ? `scale(${transformScale})` : 'none',
+    transformOrigin: 'top left',
+    transition: 'none', // No transition for instant feedback
+  }
+})
 
 // Transition handlers for smooth collapse/expand animation
 const onEnter = (el: HTMLElement) => {
@@ -358,21 +375,16 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
   try {
     logger.log('Recomputing diff at zoom:', targetZoom)
 
-    // Create temporary canvases at target resolution
-    const tempCanvas1 = document.createElement('canvas')
-    const tempCanvas2 = document.createElement('canvas')
-
     const scale = targetZoom / 100
-    const { renderPdfToCanvas } = usePdfRenderer()
 
-    // Render both PDFs at the target zoom level
-    await renderPdfToCanvas(props.leftFile!, tempCanvas1, scale)
-    await renderPdfToCanvas(props.rightFile!, tempCanvas2, scale)
+    // Render both PDFs at the target zoom level (reusing temp canvases)
+    await renderPdfToCanvas(props.leftFile!, tempCanvas1.value, scale)
+    await renderPdfToCanvas(props.rightFile!, tempCanvas2.value, scale)
 
     // Run comparison at high resolution using Web Worker
     stats.value = await comparePdfsAsync(
-      tempCanvas1,
-      tempCanvas2,
+      tempCanvas1.value,
+      tempCanvas2.value,
       diffCanvas.value!,
       diffOptions.value
     )
@@ -493,9 +505,31 @@ watch(sourceZoom, async () => {
 watch(debouncedDiffZoom, async (newZoom) => {
   if (!canCompare.value) return
 
-  // Always re-render at new zoom for native resolution (no CSS scaling)
-  logger.log('Diff zoom changed, triggering re-render at', newZoom, '%')
-  await recomputeDiffAtZoom(newZoom)
+  // Calculate zoom delta to decide if re-render is needed
+  const currentZoom = diffRenderZoom.value
+  const zoomDelta = Math.abs(newZoom - currentZoom) / currentZoom
+  const absoluteDelta = Math.abs(newZoom - currentZoom)
+
+  // Skip re-render for small zoom changes (use CSS scaling instead)
+  // Only re-render if zoom changed by >25% OR absolute diff >50 points
+  if (zoomDelta > 0.25 || absoluteDelta > 50) {
+    logger.log(
+      'Significant zoom change (',
+      zoomDelta.toFixed(2),
+      'Δ), re-rendering at',
+      newZoom,
+      '%'
+    )
+    await recomputeDiffAtZoom(newZoom)
+  } else {
+    logger.log(
+      'Small zoom change (',
+      zoomDelta.toFixed(2),
+      'Δ), using CSS scale only (no re-render)'
+    )
+    // diffZoom updates but diffRenderZoom stays the same
+    // This maintains CSS transform in diffCanvasStyle until next significant zoom
+  }
 })
 
 // Clean up timeouts when component unmounts (prevent memory leaks)
