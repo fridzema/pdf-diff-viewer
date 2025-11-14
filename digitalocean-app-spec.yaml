@@ -1,0 +1,66 @@
+# Complete DigitalOcean App Platform Specification
+# This is the corrected app spec with all required configuration
+#
+# How to apply this:
+# 1. Go to https://cloud.digitalocean.com/apps
+# 2. Select your app (pdf-diff)
+# 3. Click Settings → App Spec
+# 4. Replace the entire spec with this file's contents
+# 5. Click Save → Deploy
+#
+# Or use doctl CLI:
+# doctl apps update YOUR-APP-ID --spec digitalocean-app-spec.yaml
+
+name: pdf-diff
+region: ams  # Amsterdam
+
+# Alerts configuration
+alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+
+# Features
+features:
+- buildpack-stack=ubuntu-22
+
+# Static site configuration
+static_sites:
+  - name: pdf-diff-viewer2
+
+    # GitHub repository
+    github:
+      repo: fridzema/pdf-diff-viewer
+      branch: main
+      deploy_on_push: true
+
+    # Build configuration - CRITICAL SETTINGS
+    build_command: npm install && npm run copy-worker && npm run generate
+    output_dir: .output/public
+
+    # SPA fallback routing - FIXES 404 ERRORS
+    error_document: index.html
+
+    # Environment
+    environment_slug: node-js
+
+    # Environment variables
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: BUILD_TIME
+
+    # Source directory (root of repo)
+    source_dir: /
+
+    # Routes - serve from root path
+    routes:
+      - path: /
+
+# Ingress rules - updated to serve from root
+ingress:
+  rules:
+    - component:
+        name: pdf-diff-viewer2
+      match:
+        path:
+          prefix: /
