@@ -12,7 +12,8 @@
       "Bash(bun run dev)",
       "Bash(bun run lint:*)",
       "Bash(bun run lint:fix)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

@@ -80,6 +80,16 @@ bun run dev
 
 The application will be available at `http://localhost:3000`
 
+### Help Button Configuration
+
+The floating help button in the bottom-right corner opens a Microsoft Teams chat. By default it targets `fridzema@volkers.nl`. Override it (or supply a full deep link) via environment variables before running the app:
+
+```bash
+export NUXT_PUBLIC_TEAMS_SUPPORT_USER='your.name@domain.com'
+# or
+export NUXT_PUBLIC_TEAMS_SUPPORT_LINK='https://teams.microsoft.com/l/chat/...'
+```
+
 ### Build for Production
 
 Build the application for production:
