@@ -19,7 +19,7 @@ static_sites:
       deploy_on_push: true  # Auto-deploy on git push
 
     # Build configuration
-    build_command: bun install && bun run copy-worker && bun run generate
+    build_command: npm install && npm run copy-worker && npm run generate
     output_dir: .output/public
 
     # Routing
@@ -37,5 +37,5 @@ static_sites:
 
 # Alternative: Deploy without this file using the web interface
 # Just configure:
-#   - Build Command: bun install && bun run copy-worker && bun run generate
+#   - Build Command: npm install && npm run copy-worker && npm run generate
 #   - Output Directory: .output/public

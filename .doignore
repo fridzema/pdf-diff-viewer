@@ -1,0 +1,11 @@
+# Exclude Docker files from DigitalOcean static site deployment
+# This prevents DO from detecting the app as a containerized service
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Exclude other non-essential files
+.git/
+.github/
+*.md
+!README.md

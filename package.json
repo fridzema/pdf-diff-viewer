@@ -8,7 +8,7 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare && bun run copy-worker",
+    "postinstall": "nuxt prepare && npm run copy-worker",
     "copy-worker": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",

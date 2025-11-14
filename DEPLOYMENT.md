@@ -189,7 +189,7 @@ az container create \
 # 2. Go to https://cloud.digitalocean.com/apps
 # 3. Create App → Select GitHub repository
 # 4. Configure:
-#    - Build Command: bun install && bun run copy-worker && bun run generate
+#    - Build Command: npm install && npm run copy-worker && npm run generate
 #    - Output Directory: .output/public
 #    - Environment: NODE_ENV=production
 # 5. Deploy (takes 3-5 minutes)
