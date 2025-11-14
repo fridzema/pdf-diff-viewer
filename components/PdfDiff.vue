@@ -4,476 +4,534 @@
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-800 mb-4">Comparison Settings</h2>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Diff Mode Selection -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
-          <select
-            v-model="diffOptions.mode"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            @change="runComparison"
-          >
-            <option value="pixel">Pixel Difference</option>
-            <option value="threshold">Threshold Mode</option>
-            <option value="grayscale">Grayscale Diff</option>
-            <option value="overlay">Color Overlay</option>
-            <option value="heatmap">Heatmap</option>
-            <option value="semantic">Semantic Diff (Additions/Deletions/Modifications)</option>
-          </select>
-          <p class="mt-1 text-xs text-gray-500">{{ getModeDescription(diffOptions.mode) }}</p>
-        </div>
-
-        <!-- Threshold Slider -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Sensitivity Threshold: {{ diffOptions.threshold }}
-          </label>
-          <input
-            v-model.number="diffOptions.threshold"
-            type="range"
-            min="0"
-            max="255"
-            step="1"
-            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            @input="runComparison"
-          />
-          <div class="flex justify-between text-xs text-gray-500 mt-1">
-            <span>Less Sensitive</span>
-            <span>More Sensitive</span>
-          </div>
-        </div>
-
-        <!-- Overlay Opacity Slider (only for overlay mode) -->
-        <div v-if="diffOptions.mode === 'overlay'">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Overlay Opacity: {{ (diffOptions.overlayOpacity * 100).toFixed(0) }}%
-          </label>
-          <input
-            v-model.number="diffOptions.overlayOpacity"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            @input="runComparison"
-          />
-        </div>
-
-        <!-- Grayscale Toggle -->
-        <div class="flex items-center">
-          <input
-            v-model="diffOptions.useGrayscale"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            @change="runComparison"
-          />
-          <label class="ml-2 text-sm text-gray-700"> Convert to grayscale before comparing </label>
-        </div>
-
-        <!-- Sync Panning Toggle -->
-        <div class="flex items-center">
-          <input
-            v-model="syncPanningEnabled"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
-        </div>
-
-        <!-- Swipe Mode Toggle -->
-        <div class="flex items-center">
-          <input
-            v-model="swipeModeEnabled"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label class="ml-2 text-sm text-gray-700"> Enable swipe comparison mode </label>
-        </div>
-
-        <!-- Magnifier Toggle -->
-        <div class="flex items-center">
-          <input
-            v-model="magnifierEnabled"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label class="ml-2 text-sm text-gray-700"> Enable magnifier zoom lens </label>
-        </div>
-
-        <!-- Animation Toggle -->
-        <div class="flex items-center">
-          <input
-            v-model="animationEnabled"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label class="ml-2 text-sm text-gray-700"> Animate differences (blink) </label>
-        </div>
-
-        <!-- Magnifier Settings (only shown when magnifier is enabled) -->
-        <div
-          v-if="magnifierEnabled"
-          class="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+      <!-- Diff Mode Selection (Always Visible) -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
+        <select
+          v-model="diffOptions.mode"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          @change="runComparison"
         >
-          <h4 class="text-sm font-semibold text-blue-900 mb-3">Magnifier Settings</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-blue-900 mb-2">
-                Zoom Level: {{ magnifierZoom }}x
-              </label>
-              <input
-                v-model.number="magnifierZoom"
-                type="range"
-                min="1.5"
-                max="5"
-                step="0.5"
-                class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-blue-900 mb-2">
-                Lens Size: {{ magnifierSize }}px
-              </label>
-              <input
-                v-model.number="magnifierSize"
-                type="range"
-                min="100"
-                max="300"
-                step="25"
-                class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Animation Speed Slider (only shown when animation is enabled) -->
-        <div v-if="animationEnabled">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Animation Speed: {{ animationSpeed }}ms
-          </label>
-          <input
-            v-model.number="animationSpeed"
-            type="range"
-            min="200"
-            max="2000"
-            step="100"
-            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div class="flex justify-between text-xs text-gray-500 mt-1">
-            <span>Faster</span>
-            <span>Slower</span>
-          </div>
-        </div>
+          <option value="pixel">Pixel Difference</option>
+          <option value="threshold">Threshold Mode</option>
+          <option value="grayscale">Grayscale Diff</option>
+          <option value="overlay">Color Overlay</option>
+          <option value="heatmap">Heatmap</option>
+          <option value="semantic">Semantic Diff (Additions/Deletions/Modifications)</option>
+        </select>
+        <p class="mt-1 text-xs text-gray-500">{{ getModeDescription(diffOptions.mode) }}</p>
       </div>
 
-      <!-- Layout Normalization Settings -->
-      <div class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-        <h3 class="text-sm font-semibold text-gray-800 mb-3">Layout Normalization</h3>
-        <p class="text-xs text-gray-600 mb-4">
-          Handles PDFs with different dimensions by aligning and scaling appropriately
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Strategy Selection -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Strategy</label>
-            <select
-              v-model="normalizationStrategy.type"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-              @change="runComparison"
-            >
-              <option value="largest">Use Largest Dimensions</option>
-              <option value="smallest">Use Smallest Dimensions</option>
-              <option value="first">Match PDF 1</option>
-              <option value="second">Match PDF 2</option>
-            </select>
-          </div>
-
-          <!-- Alignment Selection -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Alignment</label>
-            <select
-              v-model="normalizationStrategy.alignment"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-              @change="runComparison"
-            >
-              <option value="top-left">Top Left</option>
-              <option value="top-center">Top Center</option>
-              <option value="center">Center</option>
-            </select>
-          </div>
-
-          <!-- Scale to Fit Toggle -->
-          <div class="flex items-center">
-            <input
-              v-model="normalizationStrategy.scaleToFit"
-              type="checkbox"
-              class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-              @change="runComparison"
-            />
-            <label class="ml-2 text-sm text-gray-700"> Scale to fit (preserve aspect ratio) </label>
-          </div>
-        </div>
-
-        <!-- Dimension Info Display -->
-        <div
-          v-if="dimensionInfo"
-          class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm"
-        >
-          <div class="font-semibold text-blue-900 mb-2">PDF Dimensions:</div>
-          <div class="grid grid-cols-2 gap-2 text-blue-800">
-            <div>
-              <span class="font-medium">PDF 1:</span>
-              {{ dimensionInfo.canvas1.width }} × {{ dimensionInfo.canvas1.height }}
-            </div>
-            <div>
-              <span class="font-medium">PDF 2:</span>
-              {{ dimensionInfo.canvas2.width }} × {{ dimensionInfo.canvas2.height }}
-            </div>
-          </div>
-          <div class="mt-2 font-semibold text-blue-900">
-            Normalized: {{ dimensionInfo.targetWidth }} × {{ dimensionInfo.targetHeight }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Comparison Button -->
-      <div class="mt-6">
+      <!-- Advanced Settings (Collapsible) -->
+      <div class="border-t border-gray-200 pt-4">
         <button
-          :disabled="!canCompare || isProcessing"
-          class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
-          @click="runComparison"
+          class="w-full flex items-center justify-between hover:bg-gray-50 transition-colors p-2 rounded"
+          @click="advancedSettingsExpanded = !advancedSettingsExpanded"
         >
+          <span class="text-sm font-medium text-gray-700">Advanced Settings</span>
           <svg
-            v-if="isProcessing"
-            class="animate-spin h-4 w-4"
             xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-gray-600 transition-transform duration-200"
+            :class="{ 'rotate-180': !advancedSettingsExpanded }"
             fill="none"
             viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
             <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
-          <span>{{ isProcessing ? 'Processing...' : 'Run Comparison' }}</span>
         </button>
-      </div>
 
-      <!-- Stats Display -->
-      <div v-if="stats" class="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 class="text-sm font-semibold text-gray-700 mb-2">Comparison Results</h3>
-        <div class="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <span class="text-gray-600">Different Pixels:</span>
-            <span class="font-semibold text-gray-900 ml-2">{{
-              stats.differenceCount.toLocaleString()
-            }}</span>
-          </div>
-          <div>
-            <span class="text-gray-600">Total Pixels:</span>
-            <span class="font-semibold text-gray-900 ml-2">{{
-              stats.totalPixels.toLocaleString()
-            }}</span>
-          </div>
-          <div>
-            <span class="text-gray-600">Difference:</span>
-            <span
-              class="font-semibold ml-2"
-              :class="stats.percentDiff > 5 ? 'text-red-600' : 'text-green-600'"
-            >
-              {{ stats.percentDiff.toFixed(2) }}%
-            </span>
-          </div>
-        </div>
-      </div>
+        <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+          <div v-show="advancedSettingsExpanded" class="overflow-hidden">
+            <div class="pt-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Threshold Slider -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Sensitivity Threshold: {{ diffOptions.threshold }}
+                  </label>
+                  <input
+                    v-model.number="diffOptions.threshold"
+                    type="range"
+                    min="0"
+                    max="255"
+                    step="1"
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    @input="runComparison"
+                  />
+                  <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Less Sensitive</span>
+                    <span>More Sensitive</span>
+                  </div>
+                </div>
 
-      <!-- Export Controls -->
-      <div v-if="stats" class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-        <h3 class="text-sm font-semibold text-gray-800 mb-3">Export Diff Image</h3>
+                <!-- Overlay Opacity Slider (only for overlay mode) -->
+                <div v-if="diffOptions.mode === 'overlay'">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Overlay Opacity: {{ (diffOptions.overlayOpacity * 100).toFixed(0) }}%
+                  </label>
+                  <input
+                    v-model.number="diffOptions.overlayOpacity"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    @input="runComparison"
+                  />
+                </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <!-- Format Selection -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Format</label>
-            <select
-              v-model="exportFormat"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-            >
-              <option value="png">PNG (Lossless)</option>
-              <option value="jpeg">JPEG (Compressed)</option>
-            </select>
-          </div>
+                <!-- Grayscale Toggle -->
+                <div class="flex items-center">
+                  <input
+                    v-model="diffOptions.useGrayscale"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    @change="runComparison"
+                  />
+                  <label class="ml-2 text-sm text-gray-700">
+                    Convert to grayscale before comparing
+                  </label>
+                </div>
 
-          <!-- JPEG Quality Slider (only for JPEG) -->
-          <div v-if="exportFormat === 'jpeg'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              JPEG Quality: {{ (exportQuality * 100).toFixed(0) }}%
-            </label>
-            <input
-              v-model.number="exportQuality"
-              type="range"
-              min="0.1"
-              max="1"
-              step="0.05"
-              class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <div class="flex justify-between text-xs text-gray-500 mt-1">
-              <span>Lower Quality</span>
-              <span>Higher Quality</span>
+                <!-- Sync Panning Toggle -->
+                <div class="flex items-center">
+                  <input
+                    v-model="syncPanningEnabled"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
+                </div>
+
+                <!-- Swipe Mode Toggle -->
+                <div class="flex items-center">
+                  <input
+                    v-model="swipeModeEnabled"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label class="ml-2 text-sm text-gray-700"> Enable swipe comparison mode </label>
+                </div>
+
+                <!-- Magnifier Toggle -->
+                <div class="flex items-center">
+                  <input
+                    v-model="magnifierEnabled"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label class="ml-2 text-sm text-gray-700"> Enable magnifier zoom lens </label>
+                </div>
+
+                <!-- Animation Toggle -->
+                <div class="flex items-center">
+                  <input
+                    v-model="animationEnabled"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label class="ml-2 text-sm text-gray-700"> Animate differences (blink) </label>
+                </div>
+
+                <!-- Magnifier Settings (only shown when magnifier is enabled) -->
+                <div
+                  v-if="magnifierEnabled"
+                  class="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                >
+                  <h4 class="text-sm font-semibold text-blue-900 mb-3">Magnifier Settings</h4>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-blue-900 mb-2">
+                        Zoom Level: {{ magnifierZoom }}x
+                      </label>
+                      <input
+                        v-model.number="magnifierZoom"
+                        type="range"
+                        min="1.5"
+                        max="5"
+                        step="0.5"
+                        class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-blue-900 mb-2">
+                        Lens Size: {{ magnifierSize }}px
+                      </label>
+                      <input
+                        v-model.number="magnifierSize"
+                        type="range"
+                        min="100"
+                        max="300"
+                        step="25"
+                        class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Animation Speed Slider (only shown when animation is enabled) -->
+                <div v-if="animationEnabled">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Animation Speed: {{ animationSpeed }}ms
+                  </label>
+                  <input
+                    v-model.number="animationSpeed"
+                    type="range"
+                    min="200"
+                    max="2000"
+                    step="100"
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Faster</span>
+                    <span>Slower</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Layout Normalization Settings -->
+              <div class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3">Layout Normalization</h3>
+                <p class="text-xs text-gray-600 mb-4">
+                  Handles PDFs with different dimensions by aligning and scaling appropriately
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <!-- Strategy Selection -->
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Strategy</label>
+                    <select
+                      v-model="normalizationStrategy.type"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      @change="runComparison"
+                    >
+                      <option value="largest">Use Largest Dimensions</option>
+                      <option value="smallest">Use Smallest Dimensions</option>
+                      <option value="first">Match PDF 1</option>
+                      <option value="second">Match PDF 2</option>
+                    </select>
+                  </div>
+
+                  <!-- Alignment Selection -->
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Alignment</label>
+                    <select
+                      v-model="normalizationStrategy.alignment"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      @change="runComparison"
+                    >
+                      <option value="top-left">Top Left</option>
+                      <option value="top-center">Top Center</option>
+                      <option value="center">Center</option>
+                    </select>
+                  </div>
+
+                  <!-- Scale to Fit Toggle -->
+                  <div class="flex items-center">
+                    <input
+                      v-model="normalizationStrategy.scaleToFit"
+                      type="checkbox"
+                      class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      @change="runComparison"
+                    />
+                    <label class="ml-2 text-sm text-gray-700">
+                      Scale to fit (preserve aspect ratio)
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Dimension Info Display -->
+                <div
+                  v-if="dimensionInfo"
+                  class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm"
+                >
+                  <div class="font-semibold text-blue-900 mb-2">PDF Dimensions:</div>
+                  <div class="grid grid-cols-2 gap-2 text-blue-800">
+                    <div>
+                      <span class="font-medium">PDF 1:</span>
+                      {{ dimensionInfo.canvas1.width }} × {{ dimensionInfo.canvas1.height }}
+                    </div>
+                    <div>
+                      <span class="font-medium">PDF 2:</span>
+                      {{ dimensionInfo.canvas2.width }} × {{ dimensionInfo.canvas2.height }}
+                    </div>
+                  </div>
+                  <div class="mt-2 font-semibold text-blue-900">
+                    Normalized: {{ dimensionInfo.targetWidth }} × {{ dimensionInfo.targetHeight }}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <!-- Include Metadata Toggle -->
-          <div class="flex items-center">
-            <input
-              v-model="exportIncludeMetadata"
-              type="checkbox"
-              class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            />
-            <label class="ml-2 text-sm text-gray-700"> Include metadata (stats, timestamp) </label>
-          </div>
-        </div>
-
-        <!-- Export Buttons -->
-        <div class="flex gap-3">
-          <button
-            :disabled="isExporting"
-            class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
-            @click="handleExport"
-          >
-            <svg
-              v-if="isExporting"
-              class="animate-spin h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-            <svg
-              v-else-if="exportSuccess"
-              class="h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              ></path>
-            </svg>
-            <svg
-              v-else
-              class="h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              ></path>
-            </svg>
-            <span>{{ exportSuccess ? 'Downloaded!' : 'Download Image' }}</span>
-          </button>
-
-          <button
-            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center justify-center gap-2"
-            @click="handleCopyToClipboard"
-          >
-            <svg
-              v-if="copySuccess"
-              class="h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              ></path>
-            </svg>
-            <svg
-              v-else
-              class="h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-              ></path>
-            </svg>
-            <span>{{ copySuccess ? 'Copied!' : 'Copy' }}</span>
-          </button>
-        </div>
+        </transition>
       </div>
+    </div>
 
-      <!-- Color Legend (only for semantic mode) -->
-      <div
-        v-if="diffOptions.mode === 'semantic'"
-        class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+    <!-- Comparison Results (Collapsible) -->
+    <div v-if="stats" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+      <button
+        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        @click="statsExpanded = !statsExpanded"
       >
-        <h3 class="text-sm font-semibold text-blue-900 mb-3">Color Legend</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded" style="background-color: rgb(34, 197, 94)"></div>
-            <div>
-              <div class="font-semibold text-blue-900">Additions</div>
-              <div class="text-xs text-blue-700">New content in PDF 2</div>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded" style="background-color: rgb(239, 68, 68)"></div>
-            <div>
-              <div class="font-semibold text-blue-900">Deletions</div>
-              <div class="text-xs text-blue-700">Removed from PDF 1</div>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded" style="background-color: rgb(250, 204, 21)"></div>
-            <div>
-              <div class="font-semibold text-blue-900">Modifications</div>
-              <div class="text-xs text-blue-700">Content changed</div>
+        <h3 class="text-lg font-semibold text-gray-800">Comparison Results</h3>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 text-gray-600 transition-transform duration-200"
+          :class="{ 'rotate-180': !statsExpanded }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+        <div v-show="statsExpanded" class="overflow-hidden">
+          <div class="p-6 pt-2">
+            <div class="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span class="text-gray-600">Different Pixels:</span>
+                <span class="font-semibold text-gray-900 ml-2">{{
+                  stats.differenceCount.toLocaleString()
+                }}</span>
+              </div>
+              <div>
+                <span class="text-gray-600">Total Pixels:</span>
+                <span class="font-semibold text-gray-900 ml-2">{{
+                  stats.totalPixels.toLocaleString()
+                }}</span>
+              </div>
+              <div>
+                <span class="text-gray-600">Difference:</span>
+                <span
+                  class="font-semibold ml-2"
+                  :class="stats.percentDiff > 5 ? 'text-red-600' : 'text-green-600'"
+                >
+                  {{ stats.percentDiff.toFixed(2) }}%
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
+    </div>
+
+    <!-- Export Controls (Collapsible) -->
+    <div v-if="stats" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+      <button
+        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        @click="exportExpanded = !exportExpanded"
+      >
+        <h3 class="text-lg font-semibold text-gray-800">Export Diff Image</h3>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 text-gray-600 transition-transform duration-200"
+          :class="{ 'rotate-180': !exportExpanded }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+        <div v-show="exportExpanded" class="overflow-hidden">
+          <div class="p-6 pt-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <!-- Format Selection -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Format</label>
+                <select
+                  v-model="exportFormat"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                >
+                  <option value="png">PNG (Lossless)</option>
+                  <option value="jpeg">JPEG (Compressed)</option>
+                </select>
+              </div>
+
+              <!-- JPEG Quality Slider (only for JPEG) -->
+              <div v-if="exportFormat === 'jpeg'">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  JPEG Quality: {{ (exportQuality * 100).toFixed(0) }}%
+                </label>
+                <input
+                  v-model.number="exportQuality"
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.05"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Lower Quality</span>
+                  <span>Higher Quality</span>
+                </div>
+              </div>
+
+              <!-- Include Metadata Toggle -->
+              <div class="flex items-center">
+                <input
+                  v-model="exportIncludeMetadata"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label class="ml-2 text-sm text-gray-700">
+                  Include metadata (stats, timestamp)
+                </label>
+              </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="flex gap-3">
+              <button
+                :disabled="isExporting"
+                class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                @click="handleExport"
+              >
+                <svg
+                  v-if="isExporting"
+                  class="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <svg
+                  v-else-if="exportSuccess"
+                  class="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+                <svg
+                  v-else
+                  class="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  ></path>
+                </svg>
+                <span>{{ exportSuccess ? 'Downloaded!' : 'Download Image' }}</span>
+              </button>
+
+              <button
+                class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center justify-center gap-2"
+                @click="handleCopyToClipboard"
+              >
+                <svg
+                  v-if="copySuccess"
+                  class="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+                <svg
+                  v-else
+                  class="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  ></path>
+                </svg>
+                <span>{{ copySuccess ? 'Copied!' : 'Copy' }}</span>
+              </button>
+            </div>
+
+            <!-- Color Legend (only for semantic mode) -->
+            <div
+              v-if="diffOptions.mode === 'semantic'"
+              class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+            >
+              <h4 class="text-sm font-semibold text-blue-900 mb-3">Color Legend</h4>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded" style="background-color: rgb(34, 197, 94)"></div>
+                  <div>
+                    <div class="font-semibold text-blue-900">Additions</div>
+                    <div class="text-xs text-blue-700">New content in PDF 2</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded" style="background-color: rgb(239, 68, 68)"></div>
+                  <div>
+                    <div class="font-semibold text-blue-900">Deletions</div>
+                    <div class="text-xs text-blue-700">Removed from PDF 1</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded" style="background-color: rgb(250, 204, 21)"></div>
+                  <div>
+                    <div class="font-semibold text-blue-900">Modifications</div>
+                    <div class="text-xs text-blue-700">Content changed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
 
     <!-- Canvas Display - 2 Row Layout -->
@@ -625,7 +683,7 @@ const leftCanvasComponent = ref<any>(null)
 const rightCanvasComponent = ref<any>(null)
 const diffCanvas = ref<HTMLCanvasElement | null>(null)
 
-const { comparePdfsAsync, isProcessing } = usePdfDiffWorker()
+const { comparePdfsAsync } = usePdfDiffWorker()
 const { renderPdfToCanvas } = usePdfRenderer()
 const { calculateNormalizedDimensions } = usePdfNormalization()
 const { exportCanvas, exportCanvasWithMetadata, copyCanvasToClipboard } = useCanvasExport()
@@ -658,6 +716,11 @@ const syncPanningEnabled = ref(true)
 
 // Collapsible source PDFs state (open by default)
 const sourcePdfsExpanded = ref(true)
+
+// Collapsible sections state
+const advancedSettingsExpanded = ref(false)
+const statsExpanded = ref(false)
+const exportExpanded = ref(false)
 
 // Swipe mode state
 const swipeModeEnabled = ref(false)
@@ -714,7 +777,12 @@ const stats = ref<{
 } | null>(null)
 
 const canCompare = computed(() => {
-  return props.leftFile !== null && props.rightFile !== null
+  const result = props.leftFile !== null && props.rightFile !== null
+  logger.log('canCompare updated:', result, {
+    leftFile: !!props.leftFile,
+    rightFile: !!props.rightFile,
+  })
+  return result
 })
 
 // Scroll synchronization between source PDFs
@@ -941,6 +1009,9 @@ const runComparison = async () => {
     // Update diff render zoom to match source zoom
     diffRenderZoom.value = sourceZoom.value
 
+    // Auto-expand stats section after successful comparison
+    statsExpanded.value = true
+
     logger.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
 
     // Restart animation if it was enabled
@@ -953,44 +1024,49 @@ const runComparison = async () => {
 }
 
 // Auto-run comparison when both files become available
-watch(canCompare, async (canNowCompare) => {
-  if (canNowCompare) {
-    logger.log('Both files available, waiting for canvases to be ready...')
+watch(
+  canCompare,
+  async (canNowCompare, oldValue) => {
+    logger.log('watch(canCompare) triggered:', { canNowCompare, oldValue })
+    if (canNowCompare) {
+      logger.log('Both files available, waiting for canvases to be ready...')
 
-    // Wait for next tick to ensure component updates
-    await nextTick()
+      // Wait for next tick to ensure component updates
+      await nextTick()
 
-    // Poll for canvas readiness (max 10 attempts, 200ms each = 2 seconds)
-    let attempts = 0
-    const maxAttempts = 10
+      // Poll for canvas readiness (max 10 attempts, 200ms each = 2 seconds)
+      let attempts = 0
+      const maxAttempts = 10
 
-    const checkAndRun = () => {
-      const leftReady = leftCanvasComponent.value?.isReady
-      const rightReady = rightCanvasComponent.value?.isReady
+      const checkAndRun = () => {
+        const leftReady = leftCanvasComponent.value?.isReady
+        const rightReady = rightCanvasComponent.value?.isReady
 
-      logger.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
-        leftReady,
-        rightReady,
-      })
+        logger.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
+          leftReady,
+          rightReady,
+        })
 
-      if (leftReady && rightReady) {
-        logger.log('Both canvases ready, running initial comparison...')
-        runComparison()
-        pollingTimeoutId.value = null
-      } else if (attempts < maxAttempts) {
-        attempts++
-        // Clear previous timeout and set new one
-        if (pollingTimeoutId.value) clearTimeout(pollingTimeoutId.value)
-        pollingTimeoutId.value = setTimeout(checkAndRun, 200) as unknown as number
-      } else {
-        logger.error('Canvases not ready after', maxAttempts, 'attempts')
-        pollingTimeoutId.value = null
+        if (leftReady && rightReady) {
+          logger.log('Both canvases ready, running initial comparison...')
+          runComparison()
+          pollingTimeoutId.value = null
+        } else if (attempts < maxAttempts) {
+          attempts++
+          // Clear previous timeout and set new one
+          if (pollingTimeoutId.value) clearTimeout(pollingTimeoutId.value)
+          pollingTimeoutId.value = setTimeout(checkAndRun, 200) as unknown as number
+        } else {
+          logger.error('Canvases not ready after', maxAttempts, 'attempts')
+          pollingTimeoutId.value = null
+        }
       }
-    }
 
-    checkAndRun()
-  }
-})
+      checkAndRun()
+    }
+  },
+  { immediate: true }
+)
 
 // Re-run comparison when source zoom changes (after PDFs have been rendered)
 watch(sourceZoom, async () => {
@@ -1129,6 +1205,40 @@ const handleCopyToClipboard = async () => {
     logger.error('Copy to clipboard failed:', error)
   }
 }
+
+// Trigger comparison on mount if files are already loaded
+onMounted(async () => {
+  if (canCompare.value) {
+    logger.log('Component mounted with files already loaded, triggering comparison...')
+    await nextTick()
+
+    // Wait for canvases to be ready
+    let attempts = 0
+    const maxAttempts = 10
+
+    const checkAndRun = () => {
+      const leftReady = leftCanvasComponent.value?.isReady
+      const rightReady = rightCanvasComponent.value?.isReady
+
+      logger.log(`Canvas readiness check on mount (attempt ${attempts + 1}/${maxAttempts}):`, {
+        leftReady,
+        rightReady,
+      })
+
+      if (leftReady && rightReady) {
+        logger.log('Both canvases ready on mount, running comparison...')
+        runComparison()
+      } else if (attempts < maxAttempts) {
+        attempts++
+        setTimeout(checkAndRun, 200)
+      } else {
+        logger.warn('Canvases not ready after', maxAttempts, 'attempts on mount')
+      }
+    }
+
+    checkAndRun()
+  }
+})
 
 // Clean up timeouts and animation when component unmounts (prevent memory leaks)
 onBeforeUnmount(() => {

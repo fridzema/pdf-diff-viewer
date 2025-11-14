@@ -126,6 +126,9 @@ const canvasStyle = computed(() => ({
   transition: 'none', // No transition for instant feedback
 }))
 
+// Track if PDF has been rendered to canvas
+const isPdfRendered = ref(false)
+
 // Watch for file or zoom changes and render
 // Use watchEffect to reactively track file, canvas, and DEBOUNCED zoom
 watchEffect(async () => {
@@ -148,24 +151,29 @@ watchEffect(async () => {
     logger.log('Attempting to render PDF to canvas at scale:', currentScale)
 
     try {
+      isPdfRendered.value = false // Reset before rendering
       await renderPdfToCanvas(file, canvas, currentScale)
+      isPdfRendered.value = true // Mark as rendered
+      logger.log('PDF rendered, isReady set to true')
     } catch (err) {
       logger.error('Failed to render PDF in PdfCanvas:', err)
+      isPdfRendered.value = false
     }
   } else if (file && !canvas) {
     logger.warn('File selected but canvas ref is not yet available')
+    isPdfRendered.value = false
   }
 })
 
 // Expose canvas element and wrapper to parent (as computed for reactive access)
 const canvasElement = computed(() => canvasRef.value)
 const canvasWrapper = computed(() => canvasWrapperRef.value)
-const isCanvasReady = computed(() => !!canvasRef.value)
+const isReady = computed(() => !!canvasRef.value && isPdfRendered.value)
 
 defineExpose({
   canvas: canvasElement,
   canvasWrapper: canvasWrapper,
-  isReady: isCanvasReady,
+  isReady: isReady,
 })
 </script>
 
