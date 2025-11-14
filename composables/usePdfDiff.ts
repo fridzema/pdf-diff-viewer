@@ -4,43 +4,60 @@ import {
   grayscaleDiff,
   overlayDiff,
   heatmapDiff,
+  semanticDiff,
   type DiffOptions,
 } from '~/lib/pdfDiffAlgorithms'
+import type { NormalizationStrategy } from './usePdfNormalization'
+import { usePdfNormalization } from './usePdfNormalization'
 
-export type DiffMode = 'pixel' | 'threshold' | 'grayscale' | 'overlay' | 'heatmap'
+export type DiffMode = 'pixel' | 'threshold' | 'grayscale' | 'overlay' | 'heatmap' | 'semantic'
 export type { DiffOptions }
 
 export const usePdfDiff = () => {
+  const { normalizeCanvases } = usePdfNormalization()
+
   /**
    * Compares two canvases pixel by pixel and creates a diff canvas
    * @param canvas1 - First canvas to compare
    * @param canvas2 - Second canvas to compare
    * @param diffCanvas - Canvas to render the diff result
    * @param options - Diff options (mode, threshold, etc.)
+   * @param normalizationStrategy - Optional normalization strategy for handling different dimensions
    */
   const comparePdfs = (
     canvas1: HTMLCanvasElement,
     canvas2: HTMLCanvasElement,
     diffCanvas: HTMLCanvasElement,
-    options: DiffOptions
+    options: DiffOptions,
+    normalizationStrategy?: NormalizationStrategy
   ): { differenceCount: number; totalPixels: number; percentDiff: number } => {
-    const ctx1 = canvas1.getContext('2d', { willReadFrequently: true })
-    const ctx2 = canvas2.getContext('2d', { willReadFrequently: true })
+    // Normalize canvases before comparison (fixes dimension mismatch issues)
+    const strategy = normalizationStrategy ?? {
+      type: 'largest' as const,
+      alignment: 'top-left' as const,
+      backgroundColor: '#ffffff',
+      scaleToFit: false,
+    }
+
+    const { normalizedCanvas1, normalizedCanvas2 } = normalizeCanvases(canvas1, canvas2, strategy)
+
+    const ctx1 = normalizedCanvas1.getContext('2d', { willReadFrequently: true })
+    const ctx2 = normalizedCanvas2.getContext('2d', { willReadFrequently: true })
     const diffCtx = diffCanvas.getContext('2d', { willReadFrequently: true })
 
     if (!ctx1 || !ctx2 || !diffCtx) {
       throw new Error('Failed to get canvas contexts')
     }
 
-    // Use the dimensions of the first canvas
-    const width = canvas1.width
-    const height = canvas1.height
+    // Now both canvases have the same dimensions (normalized)
+    const width = normalizedCanvas1.width
+    const height = normalizedCanvas1.height
 
-    // Set diff canvas dimensions to match
+    // Set diff canvas dimensions
     diffCanvas.width = width
     diffCanvas.height = height
 
-    // Get image data from both canvases
+    // Get image data from normalized canvases
     const imageData1 = ctx1.getImageData(0, 0, width, height)
     const imageData2 = ctx2.getImageData(0, 0, width, height)
     const diffData = diffCtx.createImageData(width, height)
@@ -64,6 +81,9 @@ export const usePdfDiff = () => {
         break
       case 'heatmap':
         differenceCount = heatmapDiff(imageData1.data, imageData2.data, diffData.data, options)
+        break
+      case 'semantic':
+        differenceCount = semanticDiff(imageData1.data, imageData2.data, diffData.data, options)
         break
     }
 

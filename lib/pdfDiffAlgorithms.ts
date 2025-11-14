@@ -283,3 +283,92 @@ export function getHeatmapColor(value: number): { r: number; g: number; b: numbe
     return { r: 255, g: Math.floor(255 * (1 - ratio)), b: 0 }
   }
 }
+
+/**
+ * Semantic difference - distinguishes additions, deletions, and modifications
+ * Green: Additions (content in PDF2 but not in PDF1)
+ * Red: Deletions (content in PDF1 but not in PDF2)
+ * Yellow: Modifications (content exists in both but is different)
+ */
+export function semanticDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  options: DiffOptions,
+  originalData?: Uint8ClampedArray
+): number {
+  let count = 0
+  const pixels = data1.length
+  const threshold = options.threshold
+
+  for (let i = 0; i < pixels; i += 4) {
+    const r1 = data1[i]
+    const g1 = data1[i + 1]
+    const b1 = data1[i + 2]
+    const a1 = data1[i + 3]
+
+    const r2 = data2[i]
+    const g2 = data2[i + 1]
+    const b2 = data2[i + 2]
+    const a2 = data2[i + 3]
+
+    // Calculate luminance (perceived brightness) for both pixels
+    const lum1 = 0.299 * r1 + 0.587 * g1 + 0.114 * b1
+    const lum2 = 0.299 * r2 + 0.587 * g2 + 0.114 * b2
+
+    // Check if pixel is "empty" (white/transparent)
+    // A pixel is considered empty if it's very bright and nearly transparent, or fully transparent
+    const isEmpty1 = (lum1 > 250 && a1 < 10) || a1 === 0
+    const isEmpty2 = (lum2 > 250 && a2 < 10) || a2 === 0
+
+    if (isEmpty1 && !isEmpty2) {
+      // ADDITION: Content added in PDF2 (empty in PDF1, content in PDF2)
+      diffData[i] = 34 // Green
+      diffData[i + 1] = 197
+      diffData[i + 2] = 94
+      diffData[i + 3] = 255
+      count++
+    } else if (!isEmpty1 && isEmpty2) {
+      // DELETION: Content removed from PDF1 (content in PDF1, empty in PDF2)
+      diffData[i] = 239 // Red
+      diffData[i + 1] = 68
+      diffData[i + 2] = 68
+      diffData[i + 3] = 255
+      count++
+    } else if (!isEmpty1 && !isEmpty2) {
+      // Both have content - check if modified
+      const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)
+
+      if (diff > threshold) {
+        // MODIFICATION: Content changed (both have content but it's different)
+        diffData[i] = 250 // Yellow/Amber
+        diffData[i + 1] = 204
+        diffData[i + 2] = 21
+        diffData[i + 3] = 255
+        count++
+      } else {
+        // Unchanged (both have similar content)
+        diffData[i] = r1
+        diffData[i + 1] = g1
+        diffData[i + 2] = b1
+        diffData[i + 3] = 255
+      }
+    } else {
+      // Both empty - unchanged
+      diffData[i] = 255
+      diffData[i + 1] = 255
+      diffData[i + 2] = 255
+      diffData[i + 3] = 255
+    }
+
+    // Populate original data (first PDF) for animation
+    if (originalData) {
+      originalData[i] = r1
+      originalData[i + 1] = g1
+      originalData[i + 2] = b1
+      originalData[i + 3] = 255
+    }
+  }
+
+  return count
+}

@@ -18,6 +18,7 @@
             <option value="grayscale">Grayscale Diff</option>
             <option value="overlay">Color Overlay</option>
             <option value="heatmap">Heatmap</option>
+            <option value="semantic">Semantic Diff (Additions/Deletions/Modifications)</option>
           </select>
           <p class="mt-1 text-xs text-gray-500">{{ getModeDescription(diffOptions.mode) }}</p>
         </div>
@@ -79,6 +80,26 @@
           <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
         </div>
 
+        <!-- Swipe Mode Toggle -->
+        <div class="flex items-center">
+          <input
+            v-model="swipeModeEnabled"
+            type="checkbox"
+            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label class="ml-2 text-sm text-gray-700"> Enable swipe comparison mode </label>
+        </div>
+
+        <!-- Magnifier Toggle -->
+        <div class="flex items-center">
+          <input
+            v-model="magnifierEnabled"
+            type="checkbox"
+            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label class="ml-2 text-sm text-gray-700"> Enable magnifier zoom lens </label>
+        </div>
+
         <!-- Animation Toggle -->
         <div class="flex items-center">
           <input
@@ -87,6 +108,42 @@
             class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
           />
           <label class="ml-2 text-sm text-gray-700"> Animate differences (blink) </label>
+        </div>
+
+        <!-- Magnifier Settings (only shown when magnifier is enabled) -->
+        <div
+          v-if="magnifierEnabled"
+          class="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+        >
+          <h4 class="text-sm font-semibold text-blue-900 mb-3">Magnifier Settings</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-blue-900 mb-2">
+                Zoom Level: {{ magnifierZoom }}x
+              </label>
+              <input
+                v-model.number="magnifierZoom"
+                type="range"
+                min="1.5"
+                max="5"
+                step="0.5"
+                class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-blue-900 mb-2">
+                Lens Size: {{ magnifierSize }}px
+              </label>
+              <input
+                v-model.number="magnifierSize"
+                type="range"
+                min="100"
+                max="300"
+                step="25"
+                class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Animation Speed Slider (only shown when animation is enabled) -->
@@ -105,6 +162,77 @@
           <div class="flex justify-between text-xs text-gray-500 mt-1">
             <span>Faster</span>
             <span>Slower</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layout Normalization Settings -->
+      <div class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+        <h3 class="text-sm font-semibold text-gray-800 mb-3">Layout Normalization</h3>
+        <p class="text-xs text-gray-600 mb-4">
+          Handles PDFs with different dimensions by aligning and scaling appropriately
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Strategy Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Strategy</label>
+            <select
+              v-model="normalizationStrategy.type"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              @change="runComparison"
+            >
+              <option value="largest">Use Largest Dimensions</option>
+              <option value="smallest">Use Smallest Dimensions</option>
+              <option value="first">Match PDF 1</option>
+              <option value="second">Match PDF 2</option>
+            </select>
+          </div>
+
+          <!-- Alignment Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Alignment</label>
+            <select
+              v-model="normalizationStrategy.alignment"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              @change="runComparison"
+            >
+              <option value="top-left">Top Left</option>
+              <option value="top-center">Top Center</option>
+              <option value="center">Center</option>
+            </select>
+          </div>
+
+          <!-- Scale to Fit Toggle -->
+          <div class="flex items-center">
+            <input
+              v-model="normalizationStrategy.scaleToFit"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              @change="runComparison"
+            />
+            <label class="ml-2 text-sm text-gray-700"> Scale to fit (preserve aspect ratio) </label>
+          </div>
+        </div>
+
+        <!-- Dimension Info Display -->
+        <div
+          v-if="dimensionInfo"
+          class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm"
+        >
+          <div class="font-semibold text-blue-900 mb-2">PDF Dimensions:</div>
+          <div class="grid grid-cols-2 gap-2 text-blue-800">
+            <div>
+              <span class="font-medium">PDF 1:</span>
+              {{ dimensionInfo.canvas1.width }} × {{ dimensionInfo.canvas1.height }}
+            </div>
+            <div>
+              <span class="font-medium">PDF 2:</span>
+              {{ dimensionInfo.canvas2.width }} × {{ dimensionInfo.canvas2.height }}
+            </div>
+          </div>
+          <div class="mt-2 font-semibold text-blue-900">
+            Normalized: {{ dimensionInfo.targetWidth }} × {{ dimensionInfo.targetHeight }}
           </div>
         </div>
       </div>
@@ -165,6 +293,184 @@
             >
               {{ stats.percentDiff.toFixed(2) }}%
             </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Controls -->
+      <div v-if="stats" class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+        <h3 class="text-sm font-semibold text-gray-800 mb-3">Export Diff Image</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <!-- Format Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Format</label>
+            <select
+              v-model="exportFormat"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+            >
+              <option value="png">PNG (Lossless)</option>
+              <option value="jpeg">JPEG (Compressed)</option>
+            </select>
+          </div>
+
+          <!-- JPEG Quality Slider (only for JPEG) -->
+          <div v-if="exportFormat === 'jpeg'">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              JPEG Quality: {{ (exportQuality * 100).toFixed(0) }}%
+            </label>
+            <input
+              v-model.number="exportQuality"
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.05"
+              class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Lower Quality</span>
+              <span>Higher Quality</span>
+            </div>
+          </div>
+
+          <!-- Include Metadata Toggle -->
+          <div class="flex items-center">
+            <input
+              v-model="exportIncludeMetadata"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            />
+            <label class="ml-2 text-sm text-gray-700"> Include metadata (stats, timestamp) </label>
+          </div>
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="flex gap-3">
+          <button
+            :disabled="isExporting"
+            class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+            @click="handleExport"
+          >
+            <svg
+              v-if="isExporting"
+              class="animate-spin h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <svg
+              v-else-if="exportSuccess"
+              class="h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            <svg
+              v-else
+              class="h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              ></path>
+            </svg>
+            <span>{{ exportSuccess ? 'Downloaded!' : 'Download Image' }}</span>
+          </button>
+
+          <button
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center justify-center gap-2"
+            @click="handleCopyToClipboard"
+          >
+            <svg
+              v-if="copySuccess"
+              class="h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            <svg
+              v-else
+              class="h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              ></path>
+            </svg>
+            <span>{{ copySuccess ? 'Copied!' : 'Copy' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Color Legend (only for semantic mode) -->
+      <div
+        v-if="diffOptions.mode === 'semantic'"
+        class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+      >
+        <h3 class="text-sm font-semibold text-blue-900 mb-3">Color Legend</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded" style="background-color: rgb(34, 197, 94)"></div>
+            <div>
+              <div class="font-semibold text-blue-900">Additions</div>
+              <div class="text-xs text-blue-700">New content in PDF 2</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded" style="background-color: rgb(239, 68, 68)"></div>
+            <div>
+              <div class="font-semibold text-blue-900">Deletions</div>
+              <div class="text-xs text-blue-700">Removed from PDF 1</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded" style="background-color: rgb(250, 204, 21)"></div>
+            <div>
+              <div class="font-semibold text-blue-900">Modifications</div>
+              <div class="text-xs text-blue-700">Content changed</div>
+            </div>
           </div>
         </div>
       </div>
@@ -229,15 +535,28 @@
 
       <!-- Row 2: Difference View Full Width -->
       <div class="relative">
-        <div class="mb-3 text-sm font-semibold text-gray-700">Difference View</div>
+        <div class="mb-3 text-sm font-semibold text-gray-700">
+          {{ swipeModeEnabled ? 'Swipe Comparison' : 'Difference View' }}
+        </div>
 
         <!-- Zoom Controls for Diff View -->
-        <div class="mb-3">
+        <div v-if="!swipeModeEnabled" class="mb-3">
           <PdfViewerControls v-model="diffZoom" />
         </div>
 
-        <!-- Diff Canvas -->
+        <!-- Swipe Comparison Mode -->
+        <div v-if="swipeModeEnabled">
+          <PdfSwipeCompare
+            :canvas1="leftCanvasComponent?.canvas"
+            :canvas2="rightCanvasComponent?.canvas"
+            :zoom="sourceZoom"
+            orientation="vertical"
+          />
+        </div>
+
+        <!-- Diff Canvas (Normal Mode) -->
         <div
+          v-else
           class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative"
         >
           <!-- Loading overlay -->
@@ -270,8 +589,19 @@
             </div>
           </div>
 
-          <!-- Canvas with smart scaling -->
-          <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
+          <!-- Canvas with magnifier (if enabled) -->
+          <PdfMagnifier
+            v-if="magnifierEnabled"
+            :canvas="diffCanvas"
+            :magnification="magnifierZoom"
+            :size="magnifierSize"
+            :enabled="magnifierEnabled"
+          >
+            <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
+          </PdfMagnifier>
+
+          <!-- Canvas without magnifier -->
+          <canvas v-else ref="diffCanvas" :style="diffCanvasStyle"></canvas>
         </div>
       </div>
     </div>
@@ -281,6 +611,10 @@
 <script setup lang="ts">
 import { logger } from '~/utils/logger'
 import type { DiffMode, DiffOptions } from '~/composables/usePdfDiff'
+import type { NormalizationStrategy } from '~/composables/usePdfNormalization'
+import { usePdfNormalization } from '~/composables/usePdfNormalization'
+import type { ExportFormat, ExportOptions } from '~/composables/useCanvasExport'
+import { useCanvasExport } from '~/composables/useCanvasExport'
 
 const props = defineProps<{
   leftFile: File | null
@@ -293,6 +627,8 @@ const diffCanvas = ref<HTMLCanvasElement | null>(null)
 
 const { comparePdfsAsync, isProcessing } = usePdfDiffWorker()
 const { renderPdfToCanvas } = usePdfRenderer()
+const { calculateNormalizedDimensions } = usePdfNormalization()
+const { exportCanvas, exportCanvasWithMetadata, copyCanvasToClipboard } = useCanvasExport()
 
 // Reusable temp canvases for diff recomputation (Phase 1.2 optimization)
 const tempCanvas1 = ref<HTMLCanvasElement>(document.createElement('canvas'))
@@ -323,6 +659,14 @@ const syncPanningEnabled = ref(true)
 // Collapsible source PDFs state (open by default)
 const sourcePdfsExpanded = ref(true)
 
+// Swipe mode state
+const swipeModeEnabled = ref(false)
+
+// Magnifier state
+const magnifierEnabled = ref(false)
+const magnifierZoom = ref(2.5)
+const magnifierSize = ref(200)
+
 // Animation state
 const animationEnabled = ref(false)
 const animationSpeed = ref(500) // milliseconds
@@ -333,12 +677,35 @@ const originalImageData = ref<Uint8ClampedArray | null>(null)
 const canvasWidth = ref(0)
 const canvasHeight = ref(0)
 
+// Normalization state
+const normalizationStrategy = ref<NormalizationStrategy>({
+  type: 'largest',
+  alignment: 'top-left',
+  backgroundColor: '#ffffff',
+  scaleToFit: false,
+})
+
+const dimensionInfo = ref<{
+  canvas1: { width: number; height: number }
+  canvas2: { width: number; height: number }
+  targetWidth: number
+  targetHeight: number
+} | null>(null)
+
 const diffOptions = ref<DiffOptions>({
   mode: 'pixel',
   threshold: 10,
   overlayOpacity: 0.5,
   useGrayscale: false,
 })
+
+// Export state
+const exportFormat = ref<ExportFormat>('png')
+const exportQuality = ref(0.95) // JPEG quality (0-1)
+const exportIncludeMetadata = ref(true)
+const isExporting = ref(false)
+const exportSuccess = ref(false)
+const copySuccess = ref(false)
 
 const stats = ref<{
   differenceCount: number
@@ -401,6 +768,8 @@ const getModeDescription = (mode: DiffMode): string => {
     grayscale: 'Converts to grayscale before comparing',
     overlay: 'Blends both PDFs with red highlights for differences',
     heatmap: 'Shows difference intensity with color gradient (blue → red)',
+    semantic:
+      'Distinguishes additions (green), deletions (red), and modifications (yellow) based on content presence',
   }
   return descriptions[mode]
 }
@@ -471,12 +840,13 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
     await renderPdfToCanvas(props.leftFile!, tempCanvas1.value, scale)
     await renderPdfToCanvas(props.rightFile!, tempCanvas2.value, scale)
 
-    // Run comparison at high resolution using Web Worker
+    // Run comparison at high resolution using Web Worker with normalization
     const result = await comparePdfsAsync(
       tempCanvas1.value,
       tempCanvas2.value,
       diffCanvas.value!,
-      diffOptions.value
+      diffOptions.value,
+      normalizationStrategy.value
     )
 
     stats.value = {
@@ -533,12 +903,27 @@ const runComparison = async () => {
   stopAnimation()
 
   try {
-    // Use async worker-based comparison to prevent UI freezing
+    // Calculate and store dimension info for display
+    const dimensions = calculateNormalizedDimensions(
+      leftCanvas,
+      rightCanvas,
+      normalizationStrategy.value
+    )
+
+    dimensionInfo.value = {
+      canvas1: { width: leftCanvas.width, height: leftCanvas.height },
+      canvas2: { width: rightCanvas.width, height: rightCanvas.height },
+      targetWidth: dimensions.targetWidth,
+      targetHeight: dimensions.targetHeight,
+    }
+
+    // Use async worker-based comparison to prevent UI freezing (with normalization)
     const result = await comparePdfsAsync(
       leftCanvas,
       rightCanvas,
       diffCanvas.value,
-      diffOptions.value
+      diffOptions.value,
+      normalizationStrategy.value
     )
 
     stats.value = {
@@ -675,6 +1060,75 @@ watch(animationSpeed, () => {
     startAnimation()
   }
 })
+
+// Export handler functions
+const handleExport = async () => {
+  if (!diffCanvas.value || !stats.value) {
+    logger.warn('Cannot export: missing canvas or stats')
+    return
+  }
+
+  isExporting.value = true
+  exportSuccess.value = false
+
+  try {
+    const options: ExportOptions = {
+      format: exportFormat.value,
+      quality: exportQuality.value,
+      includeMetadata: exportIncludeMetadata.value,
+    }
+
+    if (exportIncludeMetadata.value) {
+      // Export with metadata overlay
+      await exportCanvasWithMetadata(diffCanvas.value, options, {
+        timestamp: new Date().toLocaleString(),
+        mode: diffOptions.value.mode,
+        differenceCount: stats.value.differenceCount,
+        totalPixels: stats.value.totalPixels,
+        percentDiff: stats.value.percentDiff,
+        threshold: diffOptions.value.threshold,
+        overlayOpacity: diffOptions.value.overlayOpacity,
+      })
+    } else {
+      // Export canvas only (no metadata)
+      await exportCanvas(diffCanvas.value, options)
+    }
+
+    exportSuccess.value = true
+    logger.log('Export successful')
+
+    // Reset success message after 3 seconds
+    setTimeout(() => {
+      exportSuccess.value = false
+    }, 3000)
+  } catch (error) {
+    logger.error('Export failed:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const handleCopyToClipboard = async () => {
+  if (!diffCanvas.value) {
+    logger.warn('Cannot copy: missing canvas')
+    return
+  }
+
+  copySuccess.value = false
+
+  try {
+    await copyCanvasToClipboard(diffCanvas.value)
+    copySuccess.value = true
+    logger.log('Copied to clipboard successfully')
+
+    // Reset success message after 3 seconds
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 3000)
+  } catch (error) {
+    logger.error('Copy to clipboard failed:', error)
+  }
+}
 
 // Clean up timeouts and animation when component unmounts (prevent memory leaks)
 onBeforeUnmount(() => {

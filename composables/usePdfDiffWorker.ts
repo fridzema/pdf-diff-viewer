@@ -1,5 +1,7 @@
 import { ref, readonly, onUnmounted } from 'vue'
 import type { DiffOptions } from './usePdfDiff'
+import type { NormalizationStrategy } from './usePdfNormalization'
+import { usePdfNormalization } from './usePdfNormalization'
 
 /**
  * Composable for using Web Worker for PDF diff computation
@@ -8,6 +10,7 @@ import type { DiffOptions } from './usePdfDiff'
 export function usePdfDiffWorker() {
   const worker = ref<Worker | null>(null)
   const isProcessing = ref(false)
+  const { normalizeCanvases } = usePdfNormalization()
 
   /**
    * Initialize the worker
@@ -37,7 +40,8 @@ export function usePdfDiffWorker() {
     canvas1: HTMLCanvasElement,
     canvas2: HTMLCanvasElement,
     diffCanvas: HTMLCanvasElement,
-    options: DiffOptions
+    options: DiffOptions,
+    normalizationStrategy?: NormalizationStrategy
   ): Promise<{
     differenceCount: number
     totalPixels: number
@@ -51,8 +55,18 @@ export function usePdfDiffWorker() {
         return
       }
 
-      const ctx1 = canvas1.getContext('2d', { willReadFrequently: true })
-      const ctx2 = canvas2.getContext('2d', { willReadFrequently: true })
+      // Normalize canvases before comparison (fixes dimension mismatch issues)
+      const strategy = normalizationStrategy ?? {
+        type: 'largest' as const,
+        alignment: 'top-left' as const,
+        backgroundColor: '#ffffff',
+        scaleToFit: false,
+      }
+
+      const { normalizedCanvas1, normalizedCanvas2 } = normalizeCanvases(canvas1, canvas2, strategy)
+
+      const ctx1 = normalizedCanvas1.getContext('2d', { willReadFrequently: true })
+      const ctx2 = normalizedCanvas2.getContext('2d', { willReadFrequently: true })
       const diffCtx = diffCanvas.getContext('2d', { willReadFrequently: true })
 
       if (!ctx1 || !ctx2 || !diffCtx) {
@@ -60,14 +74,15 @@ export function usePdfDiffWorker() {
         return
       }
 
-      const width = canvas1.width
-      const height = canvas1.height
+      // Now both canvases have the same dimensions (normalized)
+      const width = normalizedCanvas1.width
+      const height = normalizedCanvas1.height
 
       // Set diff canvas dimensions
       diffCanvas.width = width
       diffCanvas.height = height
 
-      // Get image data
+      // Get image data from normalized canvases
       const imageData1 = ctx1.getImageData(0, 0, width, height)
       const imageData2 = ctx2.getImageData(0, 0, width, height)
 
