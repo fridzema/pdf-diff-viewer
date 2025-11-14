@@ -50,7 +50,12 @@
 
       <!-- Comparison Section -->
       <div v-if="leftFile && rightFile">
-        <PdfDiff :left-file="leftFile" :right-file="rightFile" />
+        <PdfDiff
+          :left-file="leftFile"
+          :right-file="rightFile"
+          :left-metadata="leftMetadata"
+          :right-metadata="rightMetadata"
+        />
       </div>
 
       <!-- Feature Info Section -->
@@ -146,9 +151,10 @@
               </div>
             </div>
             <div class="ml-4">
-              <h3 class="text-lg font-medium text-gray-900">Detailed Statistics</h3>
+              <h3 class="text-lg font-medium text-gray-900">Detailed Statistics & Metadata</h3>
               <p class="mt-2 text-sm text-gray-600">
-                View exact pixel counts and percentage differences between your PDF files.
+                View exact pixel counts, percentage differences, and compare PDF metadata
+                side-by-side with filtering and search.
               </p>
             </div>
           </div>
@@ -159,14 +165,32 @@
 </template>
 
 <script setup lang="ts">
+import type { PdfMetadata } from '~/composables/usePdfMetadata'
+
 const leftFile = ref<File | null>(null)
 const rightFile = ref<File | null>(null)
+const leftMetadata = ref<PdfMetadata | null>(null)
+const rightMetadata = ref<PdfMetadata | null>(null)
 
-const handleLeftFileSelected = (file: File) => {
+const { extractMetadata } = usePdfMetadata()
+
+const handleLeftFileSelected = async (file: File) => {
   leftFile.value = file
+  try {
+    leftMetadata.value = await extractMetadata(file)
+  } catch (error) {
+    console.error('Error extracting left PDF metadata:', error)
+    leftMetadata.value = null
+  }
 }
 
-const handleRightFileSelected = (file: File) => {
+const handleRightFileSelected = async (file: File) => {
   rightFile.value = file
+  try {
+    rightMetadata.value = await extractMetadata(file)
+  } catch (error) {
+    console.error('Error extracting right PDF metadata:', error)
+    rightMetadata.value = null
+  }
 }
 </script>

@@ -101,18 +101,18 @@ export function useCanvasExport() {
   ): Promise<void> => {
     // Create a new canvas with extra space for metadata
     const metadataHeight = 120
-    const exportCanvas = document.createElement('canvas')
-    exportCanvas.width = canvas.width
-    exportCanvas.height = canvas.height + metadataHeight
+    const compositeCanvas = document.createElement('canvas')
+    compositeCanvas.width = canvas.width
+    compositeCanvas.height = canvas.height + metadataHeight
 
-    const ctx = exportCanvas.getContext('2d')
+    const ctx = compositeCanvas.getContext('2d')
     if (!ctx) {
       throw new Error('Failed to get canvas context')
     }
 
     // Draw white background for metadata area
     ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height)
+    ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height)
 
     // Draw the diff canvas
     ctx.drawImage(canvas, 0, 0)
@@ -146,7 +146,7 @@ export function useCanvasExport() {
     })
 
     // Export the canvas with metadata
-    return exportCanvas(exportCanvas, options)
+    return exportCanvas(compositeCanvas, options)
   }
 
   /**

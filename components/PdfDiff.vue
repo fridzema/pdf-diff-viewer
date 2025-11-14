@@ -1,5 +1,60 @@
 <template>
   <div class="pdf-diff-container">
+    <!-- Source PDFs Side-by-Side (Collapsible) -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+      <!-- Collapsible Header -->
+      <button
+        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        @click="sourcePdfsExpanded = !sourcePdfsExpanded"
+      >
+        <h3 class="text-lg font-semibold text-gray-800">Source PDFs</h3>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 text-gray-600 transition-transform duration-200"
+          :class="{ 'rotate-180': !sourcePdfsExpanded }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      <!-- Collapsible Content -->
+      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+        <div v-show="sourcePdfsExpanded" class="overflow-hidden">
+          <div class="p-6 pt-2">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- Left PDF -->
+              <div>
+                <PdfCanvas
+                  ref="leftCanvasComponent"
+                  v-model:zoom="sourceZoom"
+                  :file="leftFile"
+                  title="PDF 1"
+                />
+              </div>
+
+              <!-- Right PDF -->
+              <div>
+                <PdfCanvas
+                  ref="rightCanvasComponent"
+                  v-model:zoom="sourceZoom"
+                  :file="rightFile"
+                  title="PDF 2"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </div>
+
     <!-- Control Panel -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-800 mb-4">Comparison Settings</h2>
@@ -534,64 +589,50 @@
       </transition>
     </div>
 
-    <!-- Canvas Display - 2 Row Layout -->
-    <div class="space-y-6">
-      <!-- Row 1: Source PDFs Side-by-Side (Collapsible) -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-        <!-- Collapsible Header -->
-        <button
-          class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          @click="sourcePdfsExpanded = !sourcePdfsExpanded"
+    <!-- Metadata Comparison (Collapsible) -->
+    <div
+      v-if="leftMetadata && rightMetadata"
+      class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6"
+    >
+      <button
+        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        @click="metadataExpanded = !metadataExpanded"
+      >
+        <h3 class="text-lg font-semibold text-gray-800">Metadata Comparison</h3>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 text-gray-600 transition-transform duration-200"
+          :class="{ 'rotate-180': !metadataExpanded }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
-          <h3 class="text-lg font-semibold text-gray-800">Source PDFs</h3>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 text-gray-600 transition-transform duration-200"
-            :class="{ 'rotate-180': !sourcePdfsExpanded }"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+        <div v-show="metadataExpanded" class="overflow-hidden">
+          <div class="p-6 pt-2">
+            <PdfMetadataDiff
+              :left-metadata="leftMetadata"
+              :right-metadata="rightMetadata"
+              :left-file-name="leftFile?.name || 'PDF 1'"
+              :right-file-name="rightFile?.name || 'PDF 2'"
             />
-          </svg>
-        </button>
-
-        <!-- Collapsible Content -->
-        <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
-          <div v-show="sourcePdfsExpanded" class="overflow-hidden">
-            <div class="p-6 pt-2">
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Left PDF -->
-                <div>
-                  <PdfCanvas
-                    ref="leftCanvasComponent"
-                    v-model:zoom="sourceZoom"
-                    :file="leftFile"
-                    title="PDF 1"
-                  />
-                </div>
-
-                <!-- Right PDF -->
-                <div>
-                  <PdfCanvas
-                    ref="rightCanvasComponent"
-                    v-model:zoom="sourceZoom"
-                    :file="rightFile"
-                    title="PDF 2"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
-        </transition>
-      </div>
+        </div>
+      </transition>
+    </div>
 
-      <!-- Row 2: Difference View Full Width -->
+    <!-- Canvas Display - Difference View -->
+    <div class="space-y-6">
+      <!-- Difference View Full Width -->
       <div class="relative">
         <div class="mb-3 text-sm font-semibold text-gray-700">
           {{ swipeModeEnabled ? 'Swipe Comparison' : 'Difference View' }}
@@ -673,10 +714,13 @@ import type { NormalizationStrategy } from '~/composables/usePdfNormalization'
 import { usePdfNormalization } from '~/composables/usePdfNormalization'
 import type { ExportFormat, ExportOptions } from '~/composables/useCanvasExport'
 import { useCanvasExport } from '~/composables/useCanvasExport'
+import type { PdfMetadata } from '~/composables/usePdfMetadata'
 
 const props = defineProps<{
   leftFile: File | null
   rightFile: File | null
+  leftMetadata?: PdfMetadata | null
+  rightMetadata?: PdfMetadata | null
 }>()
 
 const leftCanvasComponent = ref<any>(null)
@@ -721,6 +765,7 @@ const sourcePdfsExpanded = ref(true)
 const advancedSettingsExpanded = ref(false)
 const statsExpanded = ref(false)
 const exportExpanded = ref(false)
+const metadataExpanded = ref(false)
 
 // Swipe mode state
 const swipeModeEnabled = ref(false)
