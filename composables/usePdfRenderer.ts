@@ -150,7 +150,7 @@ export const usePdfRenderer = () => {
       await currentRenderTask.promise
       logger.log('PDF rendered successfully')
       currentRenderTask = null
-    } catch {
+    } catch (err) {
       // Check if it was a cancellation
       if (err instanceof Error && err.name === 'RenderingCancelledException') {
         logger.log('Render was cancelled')
