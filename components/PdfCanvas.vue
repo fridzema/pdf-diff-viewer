@@ -49,6 +49,8 @@
 </template>
 
 <script setup lang="ts">
+import { logger } from '~/utils/logger'
+
 const props = defineProps<{
   file: File | null
   title?: string
@@ -131,7 +133,7 @@ watchEffect(async () => {
   const canvas = canvasRef.value
   const currentScale = debouncedScale.value // Use debounced value
 
-  console.log('PdfCanvas watchEffect triggered:', {
+  logger.log('PdfCanvas watchEffect triggered:', {
     hasFile: !!file,
     hasCanvas: !!canvas,
     fileName: file?.name,
@@ -143,15 +145,15 @@ watchEffect(async () => {
   if (file && canvas) {
     // Wait for next tick to ensure DOM is fully ready
     await nextTick()
-    console.log('Attempting to render PDF to canvas at scale:', currentScale)
+    logger.log('Attempting to render PDF to canvas at scale:', currentScale)
 
     try {
       await renderPdfToCanvas(file, canvas, currentScale)
     } catch (err) {
-      console.error('Failed to render PDF in PdfCanvas:', err)
+      logger.error('Failed to render PDF in PdfCanvas:', err)
     }
   } else if (file && !canvas) {
-    console.warn('File selected but canvas ref is not yet available')
+    logger.warn('File selected but canvas ref is not yet available')
   }
 })
 

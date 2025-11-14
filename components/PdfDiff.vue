@@ -83,11 +83,32 @@
       <!-- Comparison Button -->
       <div class="mt-6">
         <button
-          :disabled="!canCompare"
-          class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+          :disabled="!canCompare || isProcessing"
+          class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
           @click="runComparison"
         >
-          Run Comparison
+          <svg
+            v-if="isProcessing"
+            class="animate-spin h-4 w-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <span>{{ isProcessing ? 'Processing...' : 'Run Comparison' }}</span>
         </button>
       </div>
 
@@ -229,6 +250,7 @@
 </template>
 
 <script setup lang="ts">
+import { logger } from '~/utils/logger'
 import type { DiffMode, DiffOptions } from '~/composables/usePdfDiff'
 
 const props = defineProps<{
@@ -240,13 +262,17 @@ const leftCanvasComponent = ref<any>(null)
 const rightCanvasComponent = ref<any>(null)
 const diffCanvas = ref<HTMLCanvasElement | null>(null)
 
-const { comparePdfs } = usePdfDiff()
+const { comparePdfsAsync, isProcessing } = usePdfDiffWorker()
 
 // Zoom state management
 const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
 const diffZoom = ref(100) // Independent zoom for difference view
 const diffRenderZoom = ref(100) // Actual rendered zoom of diff canvas
 const isRecomputingDiff = ref(false)
+
+// Timeout tracking for cleanup (prevent memory leaks)
+const pollingTimeoutId = ref<number | null>(null)
+const zoomTimeoutId = ref<number | null>(null)
 
 // Debounce diff zoom for smart re-rendering
 const debouncedDiffZoom = useDebounce(
@@ -330,7 +356,7 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
   isRecomputingDiff.value = true
 
   try {
-    console.log('Recomputing diff at zoom:', targetZoom)
+    logger.log('Recomputing diff at zoom:', targetZoom)
 
     // Create temporary canvases at target resolution
     const tempCanvas1 = document.createElement('canvas')
@@ -347,22 +373,22 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
     stats.value = comparePdfs(tempCanvas1, tempCanvas2, diffCanvas.value!, diffOptions.value)
 
     diffRenderZoom.value = targetZoom
-    console.log('Diff recomputed successfully at', targetZoom, '%')
+    logger.log('Diff recomputed successfully at', targetZoom, '%')
   } catch (err) {
-    console.error('Failed to recompute diff:', err)
+    logger.error('Failed to recompute diff:', err)
   } finally {
     isRecomputingDiff.value = false
   }
 }
 
-const runComparison = () => {
+const runComparison = async () => {
   if (!canCompare.value) return
 
   // Access the canvas element (already unwrapped via computed)
   const leftCanvas = leftCanvasComponent.value?.canvas
   const rightCanvas = rightCanvasComponent.value?.canvas
 
-  console.log('Running comparison with canvases:', {
+  logger.log('Running comparison with canvases:', {
     hasLeftCanvas: !!leftCanvas,
     hasRightCanvas: !!rightCanvas,
     hasDiffCanvas: !!diffCanvas.value,
@@ -371,7 +397,7 @@ const runComparison = () => {
   })
 
   if (!leftCanvas || !rightCanvas || !diffCanvas.value) {
-    console.error('Canvas elements not ready:', {
+    logger.error('Canvas elements not ready:', {
       leftCanvas: !!leftCanvas,
       rightCanvas: !!rightCanvas,
       diffCanvas: !!diffCanvas.value,
@@ -380,21 +406,27 @@ const runComparison = () => {
   }
 
   try {
-    stats.value = comparePdfs(leftCanvas, rightCanvas, diffCanvas.value, diffOptions.value)
+    // Use async worker-based comparison to prevent UI freezing
+    stats.value = await comparePdfsAsync(
+      leftCanvas,
+      rightCanvas,
+      diffCanvas.value,
+      diffOptions.value
+    )
 
     // Update diff render zoom to match source zoom
     diffRenderZoom.value = sourceZoom.value
 
-    console.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
+    logger.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
   } catch (err) {
-    console.error('Comparison failed:', err)
+    logger.error('Comparison failed:', err)
   }
 }
 
 // Auto-run comparison when files change and canvases are ready
 watch([() => props.leftFile, () => props.rightFile], async () => {
   if (canCompare.value) {
-    console.log('Files changed, waiting for canvases to be ready...')
+    logger.log('Files changed, waiting for canvases to be ready...')
 
     // Wait for next tick to ensure component updates
     await nextTick()
@@ -407,19 +439,23 @@ watch([() => props.leftFile, () => props.rightFile], async () => {
       const leftReady = leftCanvasComponent.value?.isReady
       const rightReady = rightCanvasComponent.value?.isReady
 
-      console.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
+      logger.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
         leftReady,
         rightReady,
       })
 
       if (leftReady && rightReady) {
-        console.log('Both canvases ready, running comparison...')
+        logger.log('Both canvases ready, running comparison...')
         runComparison()
+        pollingTimeoutId.value = null
       } else if (attempts < maxAttempts) {
         attempts++
-        setTimeout(checkAndRun, 200)
+        // Clear previous timeout and set new one
+        if (pollingTimeoutId.value) clearTimeout(pollingTimeoutId.value)
+        pollingTimeoutId.value = setTimeout(checkAndRun, 200) as unknown as number
       } else {
-        console.error('Canvases not ready after', maxAttempts, 'attempts')
+        logger.error('Canvases not ready after', maxAttempts, 'attempts')
+        pollingTimeoutId.value = null
       }
     }
 
@@ -430,17 +466,21 @@ watch([() => props.leftFile, () => props.rightFile], async () => {
 // Re-run comparison when source zoom changes (after PDFs have been rendered)
 watch(sourceZoom, async () => {
   if (canCompare.value) {
-    console.log('Source zoom changed, waiting for re-render before comparison...')
+    logger.log('Source zoom changed, waiting for re-render before comparison...')
 
     // Wait for PDFs to re-render at new zoom level
     await nextTick()
 
+    // Clear previous timeout to avoid race conditions
+    if (zoomTimeoutId.value) clearTimeout(zoomTimeoutId.value)
+
     // Add a small delay to ensure rendering completes
-    setTimeout(() => {
+    zoomTimeoutId.value = setTimeout(() => {
       runComparison()
       // Update diff render zoom to match source zoom
       diffRenderZoom.value = sourceZoom.value
-    }, 300)
+      zoomTimeoutId.value = null
+    }, 300) as unknown as number
   }
 })
 
@@ -450,8 +490,20 @@ watch(debouncedDiffZoom, async (newZoom) => {
 
   // Always re-render at new zoom for native resolution (no CSS scaling)
   if (newZoom !== diffRenderZoom.value) {
-    console.log('Diff zoom changed, triggering re-render at', newZoom, '%')
+    logger.log('Diff zoom changed, triggering re-render at', newZoom, '%')
     await recomputeDiffAtZoom(newZoom)
+  }
+})
+
+// Clean up timeouts when component unmounts (prevent memory leaks)
+onBeforeUnmount(() => {
+  if (pollingTimeoutId.value) {
+    clearTimeout(pollingTimeoutId.value)
+    pollingTimeoutId.value = null
+  }
+  if (zoomTimeoutId.value) {
+    clearTimeout(zoomTimeoutId.value)
+    zoomTimeoutId.value = null
   }
 })
 </script>

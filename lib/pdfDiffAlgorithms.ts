@@ -1,21 +1,25 @@
 /**
- * Web Worker for PDF Diff Computation
- * Offloads heavy pixel comparison from main thread to prevent UI blocking
- *
- * IMPORTANT: The diff algorithms below are duplicated from lib/pdfDiffAlgorithms.ts
- * to allow the worker to run independently. When updating diff logic:
- * 1. Update lib/pdfDiffAlgorithms.ts (source of truth)
- * 2. Copy changes to this file
- * 3. Run tests to ensure both implementations produce identical results
- *
- * TODO: Consider using a build step to generate this worker from the shared TypeScript module
+ * Shared PDF diff algorithms module
+ * Used by both main thread (usePdfDiff) and Web Worker (pdf-diff.worker)
+ * This prevents code duplication and ensures consistency between implementations
  */
 
+export interface DiffOptions {
+  mode: 'pixel' | 'threshold' | 'grayscale' | 'overlay' | 'heatmap'
+  threshold: number // 0-255, tolerance for pixel differences
+  overlayOpacity: number // 0-1, for overlay mode
+  useGrayscale: boolean
+}
+
 /**
- * Pixel difference - highlights different pixels in red
- * NOTE: Duplicated from lib/pdfDiffAlgorithms.ts - keep in sync!
+ * Simple pixel difference - highlights different pixels in red
  */
-function pixelDiff(data1, data2, diffData, options) {
+export function pixelDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  _options: DiffOptions
+): number {
   let count = 0
   const pixels = data1.length
 
@@ -31,12 +35,14 @@ function pixelDiff(data1, data2, diffData, options) {
     const isDifferent = r1 !== r2 || g1 !== g2 || b1 !== b2
 
     if (isDifferent) {
+      // Highlight differences in red
       diffData[i] = 255 // R
       diffData[i + 1] = 0 // G
       diffData[i + 2] = 0 // B
       diffData[i + 3] = 255 // A
       count++
     } else {
+      // Keep original pixel (from first image)
       diffData[i] = r1
       diffData[i + 1] = g1
       diffData[i + 2] = b1
@@ -50,7 +56,12 @@ function pixelDiff(data1, data2, diffData, options) {
 /**
  * Threshold difference - only highlight pixels that differ by more than threshold
  */
-function thresholdDiff(data1, data2, diffData, options) {
+export function thresholdDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  options: DiffOptions
+): number {
   let count = 0
   const pixels = data1.length
 
@@ -63,15 +74,18 @@ function thresholdDiff(data1, data2, diffData, options) {
     const g2 = data2[i + 1]
     const b2 = data2[i + 2]
 
+    // Calculate color difference
     const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)
 
     if (diff > options.threshold) {
+      // Highlight differences in red
       diffData[i] = 255
       diffData[i + 1] = 0
       diffData[i + 2] = 0
       diffData[i + 3] = 255
       count++
     } else {
+      // Keep original pixel
       diffData[i] = r1
       diffData[i + 1] = g1
       diffData[i + 2] = b1
@@ -85,23 +99,31 @@ function thresholdDiff(data1, data2, diffData, options) {
 /**
  * Grayscale difference - convert to grayscale before comparing
  */
-function grayscaleDiff(data1, data2, diffData, options) {
+export function grayscaleDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  options: DiffOptions
+): number {
   let count = 0
   const pixels = data1.length
 
   for (let i = 0; i < pixels; i += 4) {
+    // Convert to grayscale
     const gray1 = 0.299 * data1[i] + 0.587 * data1[i + 1] + 0.114 * data1[i + 2]
     const gray2 = 0.299 * data2[i] + 0.587 * data2[i + 1] + 0.114 * data2[i + 2]
 
     const diff = Math.abs(gray1 - gray2)
 
     if (diff > options.threshold) {
+      // Highlight differences in red
       diffData[i] = 255
       diffData[i + 1] = 0
       diffData[i + 2] = 0
       diffData[i + 3] = 255
       count++
     } else {
+      // Show as grayscale
       diffData[i] = gray1
       diffData[i + 1] = gray1
       diffData[i + 2] = gray1
@@ -115,7 +137,12 @@ function grayscaleDiff(data1, data2, diffData, options) {
 /**
  * Overlay mode - blend both images and highlight differences
  */
-function overlayDiff(data1, data2, diffData, options) {
+export function overlayDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  options: DiffOptions
+): number {
   let count = 0
   const pixels = data1.length
   const opacity = options.overlayOpacity
@@ -132,12 +159,14 @@ function overlayDiff(data1, data2, diffData, options) {
     const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)
 
     if (diff > options.threshold) {
+      // Blend with red overlay for differences
       diffData[i] = r1 * (1 - opacity) + 255 * opacity
       diffData[i + 1] = g1 * (1 - opacity)
       diffData[i + 2] = b1 * (1 - opacity)
       diffData[i + 3] = 255
       count++
     } else {
+      // Blend both images
       diffData[i] = r1 * 0.5 + r2 * 0.5
       diffData[i + 1] = g1 * 0.5 + g2 * 0.5
       diffData[i + 2] = b1 * 0.5 + b2 * 0.5
@@ -151,7 +180,12 @@ function overlayDiff(data1, data2, diffData, options) {
 /**
  * Heatmap mode - show difference intensity with color gradient
  */
-function heatmapDiff(data1, data2, diffData, options) {
+export function heatmapDiff(
+  data1: Uint8ClampedArray,
+  data2: Uint8ClampedArray,
+  diffData: Uint8ClampedArray,
+  options: DiffOptions
+): number {
   let count = 0
   const pixels = data1.length
 
@@ -164,12 +198,14 @@ function heatmapDiff(data1, data2, diffData, options) {
     const g2 = data2[i + 1]
     const b2 = data2[i + 2]
 
+    // Calculate normalized difference (0-1)
     const diff = (Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)) / (255 * 3)
 
     if (diff > options.threshold / (255 * 3)) {
       count++
     }
 
+    // Apply heatmap colors based on difference intensity
     const heatmapColor = getHeatmapColor(diff)
     diffData[i] = heatmapColor.r
     diffData[i + 1] = heatmapColor.g
@@ -183,63 +219,22 @@ function heatmapDiff(data1, data2, diffData, options) {
 /**
  * Converts difference value (0-1) to heatmap color (blue -> green -> yellow -> red)
  */
-function getHeatmapColor(value) {
+export function getHeatmapColor(value: number): { r: number; g: number; b: number } {
   if (value < 0.25) {
+    // Blue to Cyan
     const ratio = value / 0.25
     return { r: 0, g: Math.floor(ratio * 255), b: 255 }
   } else if (value < 0.5) {
+    // Cyan to Green
     const ratio = (value - 0.25) / 0.25
     return { r: 0, g: 255, b: Math.floor(255 * (1 - ratio)) }
   } else if (value < 0.75) {
+    // Green to Yellow
     const ratio = (value - 0.5) / 0.25
     return { r: Math.floor(ratio * 255), g: 255, b: 0 }
   } else {
+    // Yellow to Red
     const ratio = (value - 0.75) / 0.25
     return { r: 255, g: Math.floor(255 * (1 - ratio)), b: 0 }
   }
-}
-
-/**
- * Main message handler
- */
-self.onmessage = function (e) {
-  const { imageData1, imageData2, options, width, height } = e.data
-
-  // Create output array
-  const diffData = new Uint8ClampedArray(width * height * 4)
-
-  // Perform diff based on mode
-  let differenceCount = 0
-
-  switch (options.mode) {
-    case 'pixel':
-      differenceCount = pixelDiff(imageData1, imageData2, diffData, options)
-      break
-    case 'threshold':
-      differenceCount = thresholdDiff(imageData1, imageData2, diffData, options)
-      break
-    case 'grayscale':
-      differenceCount = grayscaleDiff(imageData1, imageData2, diffData, options)
-      break
-    case 'overlay':
-      differenceCount = overlayDiff(imageData1, imageData2, diffData, options)
-      break
-    case 'heatmap':
-      differenceCount = heatmapDiff(imageData1, imageData2, diffData, options)
-      break
-  }
-
-  const totalPixels = width * height
-  const percentDiff = (differenceCount / totalPixels) * 100
-
-  // Send result back to main thread
-  self.postMessage(
-    {
-      diffData,
-      differenceCount,
-      totalPixels,
-      percentDiff,
-    },
-    [diffData.buffer]
-  )
 }

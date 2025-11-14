@@ -328,7 +328,9 @@ bun run analyze
 
 - Static assets cached for 1 year (nginx.conf)
 - PDF.js worker bundled locally (no CDN dependency)
-- Diff computation offloaded to Web Worker
+- Diff computation offloaded to Web Worker (async, non-blocking UI)
+- PDF cache with LRU eviction (max 10 documents, automatic cleanup)
+- Console logging disabled in production (development only)
 
 ### Scaling Recommendations
 
