@@ -369,8 +369,13 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
     await renderPdfToCanvas(props.leftFile!, tempCanvas1, scale)
     await renderPdfToCanvas(props.rightFile!, tempCanvas2, scale)
 
-    // Run comparison at high resolution
-    stats.value = comparePdfs(tempCanvas1, tempCanvas2, diffCanvas.value!, diffOptions.value)
+    // Run comparison at high resolution using Web Worker
+    stats.value = await comparePdfsAsync(
+      tempCanvas1,
+      tempCanvas2,
+      diffCanvas.value!,
+      diffOptions.value
+    )
 
     diffRenderZoom.value = targetZoom
     logger.log('Diff recomputed successfully at', targetZoom, '%')
