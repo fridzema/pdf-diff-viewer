@@ -179,6 +179,41 @@ az container create \
   --environment-variables NODE_ENV=production
 ```
 
+### DigitalOcean App Platform (Static - FREE Tier Available)
+
+**Recommended for cost-effective static hosting with free tier**
+
+```bash
+# Method 1: Using Web Interface (Easiest)
+# 1. Push code to GitHub
+# 2. Go to https://cloud.digitalocean.com/apps
+# 3. Create App → Select GitHub repository
+# 4. Configure:
+#    - Build Command: bun install && bun run copy-worker && bun run generate
+#    - Output Directory: .output/public
+#    - Environment: NODE_ENV=production
+# 5. Deploy (takes 3-5 minutes)
+
+# Method 2: Using App Spec File
+# The repository includes .do/app.yaml for automated configuration
+# Simply create app from GitHub and DigitalOcean will auto-detect the spec
+
+# Method 3: Using doctl CLI
+brew install doctl  # or: apt-get install doctl
+doctl auth init
+doctl apps create --spec .do/app.yaml
+```
+
+**Free Tier Benefits:**
+
+- Up to 3 static site apps FREE
+- 1 GB transfer/month per app
+- SSL certificates included
+- Global CDN
+- Auto-deploy on git push
+
+**Cost:** $0/month (free tier), additional apps $3/month
+
 ### Vercel (Static/SSR)
 
 ```bash
@@ -196,7 +231,7 @@ vercel --prod
 npm i -g netlify-cli
 
 # Build and deploy
-bun run build
+bun run generate  # ← Changed from 'build' to 'generate' for static
 netlify deploy --prod --dir=.output/public
 ```
 

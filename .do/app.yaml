@@ -1,0 +1,41 @@
+# DigitalOcean App Platform Configuration
+# This file defines the deployment configuration for static hosting
+#
+# To deploy:
+# 1. Push this to your GitHub repository
+# 2. Go to https://cloud.digitalocean.com/apps
+# 3. Create App → Select your GitHub repository
+# 4. DigitalOcean will automatically detect this file
+
+name: pdf-diff-viewer
+region: nyc  # New York datacenter (change to: ams, blr, fra, lon, nyc, sfo, sgp, tor)
+
+static_sites:
+  - name: web
+    # GitHub repository configuration
+    github:
+      repo: YOUR-USERNAME/YOUR-REPO-NAME  # ← Update with your GitHub repo
+      branch: main
+      deploy_on_push: true  # Auto-deploy on git push
+
+    # Build configuration
+    build_command: bun install && bun run copy-worker && bun run generate
+    output_dir: .output/public
+
+    # Routing
+    routes:
+      - path: /
+
+    # Environment
+    environment_slug: node-js
+
+    # Environment variables
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: BUILD_TIME
+
+# Alternative: Deploy without this file using the web interface
+# Just configure:
+#   - Build Command: bun install && bun run copy-worker && bun run generate
+#   - Output Directory: .output/public
