@@ -463,6 +463,46 @@ watch([() => props.leftFile, () => props.rightFile], async () => {
   }
 })
 
+// Auto-run comparison when both files become available
+watch(canCompare, async (canNowCompare) => {
+  if (canNowCompare) {
+    logger.log('Both files available, waiting for canvases to be ready...')
+
+    // Wait for next tick to ensure component updates
+    await nextTick()
+
+    // Poll for canvas readiness (max 10 attempts, 200ms each = 2 seconds)
+    let attempts = 0
+    const maxAttempts = 10
+
+    const checkAndRun = () => {
+      const leftReady = leftCanvasComponent.value?.isReady
+      const rightReady = rightCanvasComponent.value?.isReady
+
+      logger.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
+        leftReady,
+        rightReady,
+      })
+
+      if (leftReady && rightReady) {
+        logger.log('Both canvases ready, running initial comparison...')
+        runComparison()
+        pollingTimeoutId.value = null
+      } else if (attempts < maxAttempts) {
+        attempts++
+        // Clear previous timeout and set new one
+        if (pollingTimeoutId.value) clearTimeout(pollingTimeoutId.value)
+        pollingTimeoutId.value = setTimeout(checkAndRun, 200) as unknown as number
+      } else {
+        logger.error('Canvases not ready after', maxAttempts, 'attempts')
+        pollingTimeoutId.value = null
+      }
+    }
+
+    checkAndRun()
+  }
+})
+
 // Re-run comparison when source zoom changes (after PDFs have been rendered)
 watch(sourceZoom, async () => {
   if (canCompare.value) {
