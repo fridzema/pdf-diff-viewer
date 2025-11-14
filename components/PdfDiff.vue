@@ -78,6 +78,35 @@
           />
           <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
         </div>
+
+        <!-- Animation Toggle -->
+        <div class="flex items-center">
+          <input
+            v-model="animationEnabled"
+            type="checkbox"
+            class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label class="ml-2 text-sm text-gray-700"> Animate differences (blink) </label>
+        </div>
+
+        <!-- Animation Speed Slider (only shown when animation is enabled) -->
+        <div v-if="animationEnabled">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Animation Speed: {{ animationSpeed }}ms
+          </label>
+          <input
+            v-model.number="animationSpeed"
+            type="range"
+            min="200"
+            max="2000"
+            step="100"
+            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          />
+          <div class="flex justify-between text-xs text-gray-500 mt-1">
+            <span>Faster</span>
+            <span>Slower</span>
+          </div>
+        </div>
       </div>
 
       <!-- Comparison Button -->
@@ -294,6 +323,16 @@ const syncPanningEnabled = ref(true)
 // Collapsible source PDFs state (open by default)
 const sourcePdfsExpanded = ref(true)
 
+// Animation state
+const animationEnabled = ref(false)
+const animationSpeed = ref(500) // milliseconds
+const showingDiff = ref(true)
+const animationIntervalId = ref<number | null>(null)
+const diffImageData = ref<Uint8ClampedArray | null>(null)
+const originalImageData = ref<Uint8ClampedArray | null>(null)
+const canvasWidth = ref(0)
+const canvasHeight = ref(0)
+
 const diffOptions = ref<DiffOptions>({
   mode: 'pixel',
   threshold: 10,
@@ -366,11 +405,62 @@ const getModeDescription = (mode: DiffMode): string => {
   return descriptions[mode]
 }
 
+// Animation control functions
+const startAnimation = () => {
+  if (!diffImageData.value || !originalImageData.value || !diffCanvas.value) {
+    logger.warn('Cannot start animation: missing image data or canvas')
+    return
+  }
+
+  // Clear any existing interval
+  stopAnimation()
+
+  logger.log('Starting blink animation at', animationSpeed.value, 'ms interval')
+
+  // Create the animation interval
+  animationIntervalId.value = setInterval(() => {
+    if (!diffCanvas.value) return
+
+    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+
+    // Toggle between showing diff and original
+    showingDiff.value = !showingDiff.value
+
+    const dataToShow = showingDiff.value ? diffImageData.value : originalImageData.value
+    if (dataToShow) {
+      const imageData = new ImageData(dataToShow, canvasWidth.value, canvasHeight.value)
+      ctx.putImageData(imageData, 0, 0)
+    }
+  }, animationSpeed.value) as unknown as number
+}
+
+const stopAnimation = () => {
+  if (animationIntervalId.value !== null) {
+    clearInterval(animationIntervalId.value)
+    animationIntervalId.value = null
+    logger.log('Stopped blink animation')
+  }
+
+  // Ensure we're showing the diff data when animation stops
+  if (diffImageData.value && diffCanvas.value) {
+    showingDiff.value = true
+    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    if (ctx) {
+      const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
+      ctx.putImageData(imageData, 0, 0)
+    }
+  }
+}
+
 // Recompute diff at a specific zoom level (re-renders PDFs at new resolution)
 const recomputeDiffAtZoom = async (targetZoom: number) => {
   if (isRecomputingDiff.value || !canCompare.value) return
 
   isRecomputingDiff.value = true
+
+  // Stop animation before recomputing
+  stopAnimation()
 
   try {
     logger.log('Recomputing diff at zoom:', targetZoom)
@@ -382,15 +472,32 @@ const recomputeDiffAtZoom = async (targetZoom: number) => {
     await renderPdfToCanvas(props.rightFile!, tempCanvas2.value, scale)
 
     // Run comparison at high resolution using Web Worker
-    stats.value = await comparePdfsAsync(
+    const result = await comparePdfsAsync(
       tempCanvas1.value,
       tempCanvas2.value,
       diffCanvas.value!,
       diffOptions.value
     )
 
+    stats.value = {
+      differenceCount: result.differenceCount,
+      totalPixels: result.totalPixels,
+      percentDiff: result.percentDiff,
+    }
+
+    // Store both image data arrays for animation
+    diffImageData.value = result.diffData
+    originalImageData.value = result.originalData
+    canvasWidth.value = diffCanvas.value!.width
+    canvasHeight.value = diffCanvas.value!.height
+
     diffRenderZoom.value = targetZoom
     logger.log('Diff recomputed successfully at', targetZoom, '%')
+
+    // Restart animation if it was enabled
+    if (animationEnabled.value) {
+      startAnimation()
+    }
   } catch (err) {
     logger.error('Failed to recompute diff:', err)
   } finally {
@@ -422,19 +529,39 @@ const runComparison = async () => {
     return
   }
 
+  // Stop animation before recomputing
+  stopAnimation()
+
   try {
     // Use async worker-based comparison to prevent UI freezing
-    stats.value = await comparePdfsAsync(
+    const result = await comparePdfsAsync(
       leftCanvas,
       rightCanvas,
       diffCanvas.value,
       diffOptions.value
     )
 
+    stats.value = {
+      differenceCount: result.differenceCount,
+      totalPixels: result.totalPixels,
+      percentDiff: result.percentDiff,
+    }
+
+    // Store both image data arrays for animation
+    diffImageData.value = result.diffData
+    originalImageData.value = result.originalData
+    canvasWidth.value = diffCanvas.value.width
+    canvasHeight.value = diffCanvas.value.height
+
     // Update diff render zoom to match source zoom
     diffRenderZoom.value = sourceZoom.value
 
     logger.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
+
+    // Restart animation if it was enabled
+    if (animationEnabled.value) {
+      startAnimation()
+    }
   } catch (err) {
     logger.error('Comparison failed:', err)
   }
@@ -532,7 +659,24 @@ watch(debouncedDiffZoom, async (newZoom) => {
   }
 })
 
-// Clean up timeouts when component unmounts (prevent memory leaks)
+// Watch animation enabled state
+watch(animationEnabled, (enabled) => {
+  if (enabled) {
+    startAnimation()
+  } else {
+    stopAnimation()
+  }
+})
+
+// Watch animation speed changes
+watch(animationSpeed, () => {
+  if (animationEnabled.value) {
+    // Restart animation with new speed
+    startAnimation()
+  }
+})
+
+// Clean up timeouts and animation when component unmounts (prevent memory leaks)
 onBeforeUnmount(() => {
   if (pollingTimeoutId.value) {
     clearTimeout(pollingTimeoutId.value)
@@ -542,6 +686,8 @@ onBeforeUnmount(() => {
     clearTimeout(zoomTimeoutId.value)
     zoomTimeoutId.value = null
   }
+  // Stop animation on unmount
+  stopAnimation()
 })
 </script>
 

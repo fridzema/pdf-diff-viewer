@@ -15,7 +15,7 @@
  * Pixel difference - highlights different pixels in red
  * NOTE: Duplicated from lib/pdfDiffAlgorithms.ts - keep in sync!
  */
-function pixelDiff(data1, data2, diffData, options) {
+function pixelDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
 
@@ -42,6 +42,14 @@ function pixelDiff(data1, data2, diffData, options) {
       diffData[i + 2] = b1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (no red highlights) for animation
+    if (originalData) {
+      originalData[i] = r1
+      originalData[i + 1] = g1
+      originalData[i + 2] = b1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -50,7 +58,7 @@ function pixelDiff(data1, data2, diffData, options) {
 /**
  * Threshold difference - only highlight pixels that differ by more than threshold
  */
-function thresholdDiff(data1, data2, diffData, options) {
+function thresholdDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
 
@@ -77,6 +85,14 @@ function thresholdDiff(data1, data2, diffData, options) {
       diffData[i + 2] = b1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (no red highlights) for animation
+    if (originalData) {
+      originalData[i] = r1
+      originalData[i + 1] = g1
+      originalData[i + 2] = b1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -85,7 +101,7 @@ function thresholdDiff(data1, data2, diffData, options) {
 /**
  * Grayscale difference - convert to grayscale before comparing
  */
-function grayscaleDiff(data1, data2, diffData, options) {
+function grayscaleDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
 
@@ -107,6 +123,14 @@ function grayscaleDiff(data1, data2, diffData, options) {
       diffData[i + 2] = gray1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (grayscale without red highlights) for animation
+    if (originalData) {
+      originalData[i] = gray1
+      originalData[i + 1] = gray1
+      originalData[i + 2] = gray1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -115,7 +139,7 @@ function grayscaleDiff(data1, data2, diffData, options) {
 /**
  * Overlay mode - blend both images and highlight differences
  */
-function overlayDiff(data1, data2, diffData, options) {
+function overlayDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
   const opacity = options.overlayOpacity
@@ -143,6 +167,14 @@ function overlayDiff(data1, data2, diffData, options) {
       diffData[i + 2] = b1 * 0.5 + b2 * 0.5
       diffData[i + 3] = 255
     }
+
+    // Populate original data (blended without red overlay) for animation
+    if (originalData) {
+      originalData[i] = r1 * 0.5 + r2 * 0.5
+      originalData[i + 1] = g1 * 0.5 + g2 * 0.5
+      originalData[i + 2] = b1 * 0.5 + b2 * 0.5
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -151,7 +183,7 @@ function overlayDiff(data1, data2, diffData, options) {
 /**
  * Heatmap mode - show difference intensity with color gradient
  */
-function heatmapDiff(data1, data2, diffData, options) {
+function heatmapDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
 
@@ -175,6 +207,14 @@ function heatmapDiff(data1, data2, diffData, options) {
     diffData[i + 1] = heatmapColor.g
     diffData[i + 2] = heatmapColor.b
     diffData[i + 3] = 255
+
+    // Populate original data (blended images) for animation
+    if (originalData) {
+      originalData[i] = r1 * 0.5 + r2 * 0.5
+      originalData[i + 1] = g1 * 0.5 + g2 * 0.5
+      originalData[i + 2] = b1 * 0.5 + b2 * 0.5
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -205,41 +245,43 @@ function getHeatmapColor(value) {
 self.onmessage = function (e) {
   const { imageData1, imageData2, options, width, height } = e.data
 
-  // Create output array
+  // Create output arrays
   const diffData = new Uint8ClampedArray(width * height * 4)
+  const originalData = new Uint8ClampedArray(width * height * 4)
 
   // Perform diff based on mode
   let differenceCount = 0
 
   switch (options.mode) {
     case 'pixel':
-      differenceCount = pixelDiff(imageData1, imageData2, diffData, options)
+      differenceCount = pixelDiff(imageData1, imageData2, diffData, options, originalData)
       break
     case 'threshold':
-      differenceCount = thresholdDiff(imageData1, imageData2, diffData, options)
+      differenceCount = thresholdDiff(imageData1, imageData2, diffData, options, originalData)
       break
     case 'grayscale':
-      differenceCount = grayscaleDiff(imageData1, imageData2, diffData, options)
+      differenceCount = grayscaleDiff(imageData1, imageData2, diffData, options, originalData)
       break
     case 'overlay':
-      differenceCount = overlayDiff(imageData1, imageData2, diffData, options)
+      differenceCount = overlayDiff(imageData1, imageData2, diffData, options, originalData)
       break
     case 'heatmap':
-      differenceCount = heatmapDiff(imageData1, imageData2, diffData, options)
+      differenceCount = heatmapDiff(imageData1, imageData2, diffData, options, originalData)
       break
   }
 
   const totalPixels = width * height
   const percentDiff = (differenceCount / totalPixels) * 100
 
-  // Send result back to main thread
+  // Send result back to main thread (transfer both buffers)
   self.postMessage(
     {
       diffData,
+      originalData,
       differenceCount,
       totalPixels,
       percentDiff,
     },
-    [diffData.buffer]
+    [diffData.buffer, originalData.buffer]
   )
 }

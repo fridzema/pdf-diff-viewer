@@ -38,7 +38,13 @@ export function usePdfDiffWorker() {
     canvas2: HTMLCanvasElement,
     diffCanvas: HTMLCanvasElement,
     options: DiffOptions
-  ): Promise<{ differenceCount: number; totalPixels: number; percentDiff: number }> => {
+  ): Promise<{
+    differenceCount: number
+    totalPixels: number
+    percentDiff: number
+    diffData: Uint8ClampedArray
+    originalData: Uint8ClampedArray
+  }> => {
     return new Promise((resolve, reject) => {
       if (!initWorker() || !worker.value) {
         reject(new Error('Worker initialization failed'))
@@ -69,7 +75,7 @@ export function usePdfDiffWorker() {
 
       // Set up worker message handler
       const handleMessage = (e: MessageEvent) => {
-        const { diffData, differenceCount, totalPixels, percentDiff } = e.data
+        const { diffData, originalData, differenceCount, totalPixels, percentDiff } = e.data
 
         // Put the diff data on the canvas
         const resultImageData = new ImageData(new Uint8ClampedArray(diffData), width, height)
@@ -81,7 +87,13 @@ export function usePdfDiffWorker() {
         worker.value?.removeEventListener('message', handleMessage)
         worker.value?.removeEventListener('error', handleError)
 
-        resolve({ differenceCount, totalPixels, percentDiff })
+        resolve({
+          differenceCount,
+          totalPixels,
+          percentDiff,
+          diffData: new Uint8ClampedArray(diffData),
+          originalData: new Uint8ClampedArray(originalData),
+        })
       }
 
       const handleError = (error: ErrorEvent) => {

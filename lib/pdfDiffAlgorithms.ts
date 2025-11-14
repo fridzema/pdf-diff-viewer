@@ -18,7 +18,8 @@ export function pixelDiff(
   data1: Uint8ClampedArray,
   data2: Uint8ClampedArray,
   diffData: Uint8ClampedArray,
-  _options: DiffOptions
+  _options: DiffOptions,
+  originalData?: Uint8ClampedArray
 ): number {
   let count = 0
   const pixels = data1.length
@@ -48,6 +49,14 @@ export function pixelDiff(
       diffData[i + 2] = b1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (no red highlights) for animation
+    if (originalData) {
+      originalData[i] = r1
+      originalData[i + 1] = g1
+      originalData[i + 2] = b1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -60,7 +69,8 @@ export function thresholdDiff(
   data1: Uint8ClampedArray,
   data2: Uint8ClampedArray,
   diffData: Uint8ClampedArray,
-  options: DiffOptions
+  options: DiffOptions,
+  originalData?: Uint8ClampedArray
 ): number {
   let count = 0
   const pixels = data1.length
@@ -91,6 +101,14 @@ export function thresholdDiff(
       diffData[i + 2] = b1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (no red highlights) for animation
+    if (originalData) {
+      originalData[i] = r1
+      originalData[i + 1] = g1
+      originalData[i + 2] = b1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -103,7 +121,8 @@ export function grayscaleDiff(
   data1: Uint8ClampedArray,
   data2: Uint8ClampedArray,
   diffData: Uint8ClampedArray,
-  options: DiffOptions
+  options: DiffOptions,
+  originalData?: Uint8ClampedArray
 ): number {
   let count = 0
   const pixels = data1.length
@@ -129,6 +148,14 @@ export function grayscaleDiff(
       diffData[i + 2] = gray1
       diffData[i + 3] = 255
     }
+
+    // Populate original data (grayscale without red highlights) for animation
+    if (originalData) {
+      originalData[i] = gray1
+      originalData[i + 1] = gray1
+      originalData[i + 2] = gray1
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -141,7 +168,8 @@ export function overlayDiff(
   data1: Uint8ClampedArray,
   data2: Uint8ClampedArray,
   diffData: Uint8ClampedArray,
-  options: DiffOptions
+  options: DiffOptions,
+  originalData?: Uint8ClampedArray
 ): number {
   let count = 0
   const pixels = data1.length
@@ -172,6 +200,14 @@ export function overlayDiff(
       diffData[i + 2] = b1 * 0.5 + b2 * 0.5
       diffData[i + 3] = 255
     }
+
+    // Populate original data (blended without red overlay) for animation
+    if (originalData) {
+      originalData[i] = r1 * 0.5 + r2 * 0.5
+      originalData[i + 1] = g1 * 0.5 + g2 * 0.5
+      originalData[i + 2] = b1 * 0.5 + b2 * 0.5
+      originalData[i + 3] = 255
+    }
   }
 
   return count
@@ -184,7 +220,8 @@ export function heatmapDiff(
   data1: Uint8ClampedArray,
   data2: Uint8ClampedArray,
   diffData: Uint8ClampedArray,
-  options: DiffOptions
+  options: DiffOptions,
+  originalData?: Uint8ClampedArray
 ): number {
   let count = 0
   const pixels = data1.length
@@ -211,6 +248,14 @@ export function heatmapDiff(
     diffData[i + 1] = heatmapColor.g
     diffData[i + 2] = heatmapColor.b
     diffData[i + 3] = 255
+
+    // Populate original data (blended images) for animation
+    if (originalData) {
+      originalData[i] = r1 * 0.5 + r2 * 0.5
+      originalData[i + 1] = g1 * 0.5 + g2 * 0.5
+      originalData[i + 2] = b1 * 0.5 + b2 * 0.5
+      originalData[i + 3] = 255
+    }
   }
 
   return count
