@@ -1062,8 +1062,8 @@ const runComparison = async () => {
     // Update diff render zoom to match source zoom
     diffRenderZoom.value = sourceZoom.value
 
-    // Auto-expand stats section after successful comparison
-    statsExpanded.value = true
+    // Auto-switch to Results tab after successful comparison
+    activeTab.value = 1
 
     logger.log('Comparison completed:', stats.value, 'at zoom:', sourceZoom.value)
 
@@ -1220,6 +1220,31 @@ watch(animationSpeed, () => {
   if (animationEnabled.value) {
     // Restart animation with new speed
     startAnimation()
+  }
+})
+
+// Watch magnifier toggle to restore canvas content
+watch(magnifierEnabled, async () => {
+  // When magnifier is toggled, the canvas element is recreated due to v-if/v-else
+  // We need to restore the diff data to the new canvas element
+  await nextTick() // Wait for DOM update
+
+  if (diffImageData.value && diffCanvas.value && canvasWidth.value > 0 && canvasHeight.value > 0) {
+    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    if (ctx) {
+      try {
+        // Restore canvas dimensions
+        diffCanvas.value.width = canvasWidth.value
+        diffCanvas.value.height = canvasHeight.value
+
+        // Restore the diff image data
+        const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
+        ctx.putImageData(imageData, 0, 0)
+        logger.log('Restored diff canvas after magnifier toggle')
+      } catch (err) {
+        logger.error('Failed to restore diff canvas after magnifier toggle:', err)
+      }
+    }
   }
 })
 

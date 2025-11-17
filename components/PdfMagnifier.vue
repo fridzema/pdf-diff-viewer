@@ -94,12 +94,19 @@ const {
 // Sync magnifier canvas element with composable
 watch(magnifierCanvas, (newCanvas) => {
   if (newCanvas && magnifierCanvasElement.value) {
+    // Match the high-resolution dimensions from the magnifier canvas
     magnifierCanvasElement.value.width = newCanvas.width
     magnifierCanvasElement.value.height = newCanvas.height
+    // Keep CSS size at the logical size
+    magnifierCanvasElement.value.style.width = `${size.value}px`
+    magnifierCanvasElement.value.style.height = `${size.value}px`
 
     const ctx = magnifierCanvasElement.value.getContext('2d')
     const srcCtx = newCanvas.getContext('2d')
     if (ctx && srcCtx) {
+      // Enable high-quality image smoothing for the transfer
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(newCanvas, 0, 0)
     }
   }
@@ -146,6 +153,9 @@ const handleMouseMove = (e: MouseEvent) => {
     const ctx = magnifierCanvasElement.value.getContext('2d')
     if (ctx) {
       ctx.clearRect(0, 0, magnifierCanvasElement.value.width, magnifierCanvasElement.value.height)
+      // Enable high-quality image smoothing
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(magnifierCanvas.value, 0, 0)
     }
   }

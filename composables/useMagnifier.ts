@@ -77,16 +77,18 @@ export function useMagnifier(
     const sourceY = canvasY - sourceSize / 2
 
     // Render magnified content to magnifier canvas
+    const dpr = window.devicePixelRatio || 1
     const ctx = magnifierCanvas.value.getContext('2d')
     if (ctx) {
-      ctx.clearRect(0, 0, size, size)
+      // Clear at high resolution
+      ctx.clearRect(0, 0, size * dpr, size * dpr)
 
       // Enable image smoothing for better quality
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
 
-      // Draw magnified portion
-      ctx.drawImage(canvas, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size)
+      // Draw magnified portion at device pixel ratio resolution
+      ctx.drawImage(canvas, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size * dpr, size * dpr)
     }
   }
 
@@ -119,9 +121,13 @@ export function useMagnifier(
    * Initialize magnifier canvas
    */
   const initMagnifierCanvas = () => {
+    const dpr = window.devicePixelRatio || 1
+
     magnifierCanvas.value = document.createElement('canvas')
-    magnifierCanvas.value.width = size
-    magnifierCanvas.value.height = size
+    // Set canvas resolution to match device pixel ratio for sharp rendering
+    magnifierCanvas.value.width = size * dpr
+    magnifierCanvas.value.height = size * dpr
+    // Set CSS size for correct display size
     magnifierCanvas.value.style.width = `${size}px`
     magnifierCanvas.value.style.height = `${size}px`
     magnifierCanvas.value.style.display = 'block'
