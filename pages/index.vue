@@ -1,51 +1,73 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-    <!-- Header -->
-    <header class="bg-white shadow-sm">
-      <div class="container mx-auto px-4 py-6">
-        <h1 class="text-3xl font-bold text-gray-900">PDF Diff Viewer</h1>
-        <p class="text-gray-600 mt-2">
-          Compare two PDF files visually with multiple comparison modes
-        </p>
-      </div>
-    </header>
-
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
       <!-- Upload Section -->
-      <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
-        <h2 class="text-xl font-semibold text-gray-800 mb-6">Upload PDF Files</h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Left PDF Upload -->
-          <PdfUploader label="Upload First PDF" @file-selected="handleLeftFileSelected" />
-
-          <!-- Right PDF Upload -->
-          <PdfUploader label="Upload Second PDF" @file-selected="handleRightFileSelected" />
-        </div>
-
-        <!-- Info Message -->
-        <div
-          v-if="!leftFile || !rightFile"
-          class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+        <!-- Collapsible Header Button -->
+        <button
+          class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          @click="uploadSectionExpanded = !uploadSectionExpanded"
         >
-          <div class="flex items-start">
-            <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fill-rule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <div>
-              <h3 class="text-sm font-medium text-blue-900">Getting Started</h3>
-              <p class="mt-1 text-sm text-blue-700">
-                Upload two PDF files to begin comparing. The comparison will automatically run once
-                both files are loaded.
-              </p>
+          <h3 class="text-lg font-semibold text-gray-800">Upload PDF Files</h3>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-gray-600 transition-transform duration-200"
+            :class="{ 'rotate-180': !uploadSectionExpanded }"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
+
+        <!-- Collapsible Content with Transition -->
+        <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+          <div v-show="uploadSectionExpanded" class="overflow-hidden">
+            <div class="p-6 pt-2">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left PDF Upload -->
+                <PdfUploader label="Upload First PDF" @file-selected="handleLeftFileSelected" />
+
+                <!-- Right PDF Upload -->
+                <PdfUploader label="Upload Second PDF" @file-selected="handleRightFileSelected" />
+              </div>
+
+              <!-- Info Message -->
+              <div
+                v-if="!leftFile || !rightFile"
+                class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+              >
+                <div class="flex items-start">
+                  <svg
+                    class="w-5 h-5 text-blue-600 mt-0.5 mr-3"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <div>
+                    <h3 class="text-sm font-medium text-blue-900">Getting Started</h3>
+                    <p class="mt-1 text-sm text-blue-700">
+                      Upload two PDF files to begin comparing. The comparison will automatically run
+                      once both files are loaded.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </transition>
       </div>
 
       <!-- Comparison Section -->
@@ -172,6 +194,19 @@ const rightFile = ref<File | null>(null)
 const leftMetadata = ref<PdfMetadata | null>(null)
 const rightMetadata = ref<PdfMetadata | null>(null)
 
+// Collapsible upload section state
+const uploadSectionExpanded = ref(true)
+
+// Track when both files are selected
+const bothFilesSelected = computed(() => leftFile.value !== null && rightFile.value !== null)
+
+// Auto-collapse upload section when both files are selected
+watch(bothFilesSelected, (selected) => {
+  if (selected) {
+    uploadSectionExpanded.value = false
+  }
+})
+
 const { extractMetadata } = usePdfMetadata()
 
 const handleLeftFileSelected = async (file: File) => {
@@ -192,5 +227,29 @@ const handleRightFileSelected = async (file: File) => {
     console.error('Error extracting right PDF metadata:', error)
     rightMetadata.value = null
   }
+}
+
+// Transition handlers for smooth collapse/expand animations
+const onEnter = (el: HTMLElement) => {
+  el.style.height = '0'
+  el.style.opacity = '0'
+}
+
+const onAfterEnter = (el: HTMLElement) => {
+  el.style.height = 'auto'
+  el.style.opacity = '1'
+  el.style.transition = 'height 0.3s ease-out, opacity 0.3s ease-out'
+}
+
+const onLeave = (el: HTMLElement) => {
+  el.style.height = `${el.scrollHeight}px`
+  el.style.opacity = '1'
+
+  // Force reflow (intentionally reading offsetHeight to trigger layout)
+  void el.offsetHeight
+
+  el.style.transition = 'height 0.3s ease-in, opacity 0.3s ease-in'
+  el.style.height = '0'
+  el.style.opacity = '0'
 }
 </script>

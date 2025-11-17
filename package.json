@@ -21,20 +21,20 @@
     "prepare": "husky || true"
   },
   "dependencies": {
-    "@nuxt/ui": "^2.18.4",
+    "@nuxt/ui": "^2.22.3",
     "diff2html": "^3.4.52",
-    "nuxt": "^3.13.0",
-    "pdfjs-dist": "^4.7.76",
-    "vue": "^3.4.0",
-    "vue-router": "^4.4.0"
+    "nuxt": "^3.20.1",
+    "pdfjs-dist": "^4.10.38",
+    "vue": "^3.5.24",
+    "vue-router": "^4.6.3"
   },
   "devDependencies": {
     "@nuxt/eslint-config": "^1.10.0",
-    "@nuxtjs/tailwindcss": "^6.12.1",
-    "@types/node": "^20.16.0",
+    "@nuxtjs/tailwindcss": "^6.14.0",
+    "@types/node": "^20.19.25",
     "@vitejs/plugin-vue": "^6.0.1",
-    "@vitest/coverage-v8": "^4.0.8",
-    "@vitest/ui": "^4.0.8",
+    "@vitest/coverage-v8": "^4.0.10",
+    "@vitest/ui": "^4.0.10",
     "@vue/test-utils": "^2.4.6",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -44,9 +44,9 @@
     "jsdom": "^27.2.0",
     "lint-staged": "^16.2.6",
     "prettier": "^3.6.2",
-    "typescript": "^5.6.0",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.10"
   },
   "lint-staged": {
     "*.{js,ts,vue}": [
