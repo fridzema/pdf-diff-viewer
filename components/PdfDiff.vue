@@ -97,7 +97,7 @@
       <!-- Tab Content -->
       <div class="p-6">
         <!-- Settings Tab -->
-        <div v-show="activeTab === 0">
+        <div v-if="activeTab === 0">
           <!-- Diff Mode Selection -->
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
@@ -375,7 +375,7 @@
         </div>
 
         <!-- Results Tab -->
-        <div v-show="activeTab === 1">
+        <div v-if="activeTab === 1">
           <div v-if="stats">
             <div class="grid grid-cols-3 gap-4 text-sm">
               <div>
@@ -407,7 +407,7 @@
         </div>
 
         <!-- Metadata Tab -->
-        <div v-show="activeTab === 2">
+        <div v-if="activeTab === 2">
           <div v-if="leftMetadata && rightMetadata">
             <PdfMetadataDiff
               :left-metadata="leftMetadata"
@@ -907,7 +907,7 @@ const startAnimation = () => {
   animationIntervalId.value = setInterval(() => {
     if (!diffCanvas.value) return
 
-    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    const ctx = diffCanvas.value.getContext('2d')
     if (!ctx) return
 
     // Toggle between showing diff and original
@@ -931,7 +931,7 @@ const stopAnimation = () => {
   // Ensure we're showing the diff data when animation stops
   if (diffImageData.value && diffCanvas.value) {
     showingDiff.value = true
-    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    const ctx = diffCanvas.value.getContext('2d')
     if (ctx && canvasWidth.value > 0 && canvasHeight.value > 0) {
       try {
         const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
@@ -1230,7 +1230,7 @@ watch(magnifierEnabled, async () => {
   await nextTick() // Wait for DOM update
 
   if (diffImageData.value && diffCanvas.value && canvasWidth.value > 0 && canvasHeight.value > 0) {
-    const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
+    const ctx = diffCanvas.value.getContext('2d')
     if (ctx) {
       try {
         // Restore canvas dimensions

@@ -249,8 +249,18 @@ function semanticDiff(data1, data2, diffData, options, originalData) {
   let count = 0
   const pixels = data1.length
   const threshold = options.threshold
+  const numPixels = pixels / 4
 
-  for (let i = 0; i < pixels; i += 4) {
+  // Pre-calculate luminance values for better performance
+  const luminance1 = new Float32Array(numPixels)
+  const luminance2 = new Float32Array(numPixels)
+
+  for (let i = 0, pixelIndex = 0; i < pixels; i += 4, pixelIndex++) {
+    luminance1[pixelIndex] = 0.299 * data1[i] + 0.587 * data1[i + 1] + 0.114 * data1[i + 2]
+    luminance2[pixelIndex] = 0.299 * data2[i] + 0.587 * data2[i + 1] + 0.114 * data2[i + 2]
+  }
+
+  for (let i = 0, pixelIndex = 0; i < pixels; i += 4, pixelIndex++) {
     const r1 = data1[i]
     const g1 = data1[i + 1]
     const b1 = data1[i + 2]
@@ -261,9 +271,9 @@ function semanticDiff(data1, data2, diffData, options, originalData) {
     const b2 = data2[i + 2]
     const a2 = data2[i + 3]
 
-    // Calculate luminance (perceived brightness) for both pixels
-    const lum1 = 0.299 * r1 + 0.587 * g1 + 0.114 * b1
-    const lum2 = 0.299 * r2 + 0.587 * g2 + 0.114 * b2
+    // Use pre-calculated luminance values
+    const lum1 = luminance1[pixelIndex]
+    const lum2 = luminance2[pixelIndex]
 
     // Check if pixel is "empty" (white/transparent)
     const isEmpty1 = (lum1 > 250 && a1 < 10) || a1 === 0
