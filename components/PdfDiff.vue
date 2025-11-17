@@ -1,7 +1,7 @@
 <template>
   <div class="pdf-diff-container">
     <!-- Source PDFs Side-by-Side (Collapsible) -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
       <!-- Collapsible Header -->
       <button
         class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
@@ -55,306 +55,328 @@
       </transition>
     </div>
 
-    <!-- Control Panel -->
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-      <h2 class="text-lg font-semibold text-gray-800 mb-4">Comparison Settings</h2>
-
-      <!-- Diff Mode Selection (Always Visible) -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
-        <select
-          v-model="diffOptions.mode"
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          @change="runComparison"
-        >
-          <option value="pixel">Pixel Difference</option>
-          <option value="threshold">Threshold Mode</option>
-          <option value="grayscale">Grayscale Diff</option>
-          <option value="overlay">Color Overlay</option>
-          <option value="heatmap">Heatmap</option>
-          <option value="semantic">Semantic Diff (Additions/Deletions/Modifications)</option>
-        </select>
-        <p class="mt-1 text-xs text-gray-500">{{ getModeDescription(diffOptions.mode) }}</p>
-      </div>
-
-      <!-- Advanced Settings (Collapsible) -->
-      <div class="border-t border-gray-200 pt-4">
+    <!-- Comparison (Tabbed Interface) -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
+      <!-- Tab Navigation -->
+      <div class="flex border-b border-gray-200">
         <button
-          class="w-full flex items-center justify-between hover:bg-gray-50 transition-colors p-2 rounded"
-          @click="advancedSettingsExpanded = !advancedSettingsExpanded"
+          class="px-6 py-4 font-medium text-sm transition-colors border-b-2"
+          :class="
+            activeTab === 0
+              ? 'text-primary-600 border-primary-600'
+              : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+          "
+          @click="activeTab = 0"
         >
-          <span class="text-sm font-medium text-gray-700">Advanced Settings</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 text-gray-600 transition-transform duration-200"
-            :class="{ 'rotate-180': !advancedSettingsExpanded }"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+          Settings
         </button>
-
-        <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
-          <div v-show="advancedSettingsExpanded" class="overflow-hidden">
-            <div class="pt-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Threshold Slider -->
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Sensitivity Threshold: {{ diffOptions.threshold }}
-                  </label>
-                  <input
-                    v-model.number="diffOptions.threshold"
-                    type="range"
-                    min="0"
-                    max="255"
-                    step="1"
-                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    @input="runComparison"
-                  />
-                  <div class="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Less Sensitive</span>
-                    <span>More Sensitive</span>
-                  </div>
-                </div>
-
-                <!-- Overlay Opacity Slider (only for overlay mode) -->
-                <div v-if="diffOptions.mode === 'overlay'">
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Overlay Opacity: {{ (diffOptions.overlayOpacity * 100).toFixed(0) }}%
-                  </label>
-                  <input
-                    v-model.number="diffOptions.overlayOpacity"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    @input="runComparison"
-                  />
-                </div>
-
-                <!-- Grayscale Toggle -->
-                <div class="flex items-center">
-                  <input
-                    v-model="diffOptions.useGrayscale"
-                    type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    @change="runComparison"
-                  />
-                  <label class="ml-2 text-sm text-gray-700">
-                    Convert to grayscale before comparing
-                  </label>
-                </div>
-
-                <!-- Sync Panning Toggle -->
-                <div class="flex items-center">
-                  <input
-                    v-model="syncPanningEnabled"
-                    type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                  />
-                  <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
-                </div>
-
-                <!-- Swipe Mode Toggle -->
-                <div class="flex items-center">
-                  <input
-                    v-model="swipeModeEnabled"
-                    type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                  />
-                  <label class="ml-2 text-sm text-gray-700"> Enable swipe comparison mode </label>
-                </div>
-
-                <!-- Magnifier Toggle -->
-                <div class="flex items-center">
-                  <input
-                    v-model="magnifierEnabled"
-                    type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                  />
-                  <label class="ml-2 text-sm text-gray-700"> Enable magnifier zoom lens </label>
-                </div>
-
-                <!-- Animation Toggle -->
-                <div class="flex items-center">
-                  <input
-                    v-model="animationEnabled"
-                    type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                  />
-                  <label class="ml-2 text-sm text-gray-700"> Animate differences (blink) </label>
-                </div>
-
-                <!-- Magnifier Settings (only shown when magnifier is enabled) -->
-                <div
-                  v-if="magnifierEnabled"
-                  class="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
-                >
-                  <h4 class="text-sm font-semibold text-blue-900 mb-3">Magnifier Settings</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-sm font-medium text-blue-900 mb-2">
-                        Zoom Level: {{ magnifierZoom }}x
-                      </label>
-                      <input
-                        v-model.number="magnifierZoom"
-                        type="range"
-                        min="1.5"
-                        max="5"
-                        step="0.5"
-                        class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-sm font-medium text-blue-900 mb-2">
-                        Lens Size: {{ magnifierSize }}px
-                      </label>
-                      <input
-                        v-model.number="magnifierSize"
-                        type="range"
-                        min="100"
-                        max="300"
-                        step="25"
-                        class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Animation Speed Slider (only shown when animation is enabled) -->
-                <div v-if="animationEnabled">
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Animation Speed: {{ animationSpeed }}ms
-                  </label>
-                  <input
-                    v-model.number="animationSpeed"
-                    type="range"
-                    min="200"
-                    max="2000"
-                    step="100"
-                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div class="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Faster</span>
-                    <span>Slower</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Layout Normalization Settings -->
-              <div class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h3 class="text-sm font-semibold text-gray-800 mb-3">Layout Normalization</h3>
-                <p class="text-xs text-gray-600 mb-4">
-                  Handles PDFs with different dimensions by aligning and scaling appropriately
-                </p>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <!-- Strategy Selection -->
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Strategy</label>
-                    <select
-                      v-model="normalizationStrategy.type"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                      @change="runComparison"
-                    >
-                      <option value="largest">Use Largest Dimensions</option>
-                      <option value="smallest">Use Smallest Dimensions</option>
-                      <option value="first">Match PDF 1</option>
-                      <option value="second">Match PDF 2</option>
-                    </select>
-                  </div>
-
-                  <!-- Alignment Selection -->
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Alignment</label>
-                    <select
-                      v-model="normalizationStrategy.alignment"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                      @change="runComparison"
-                    >
-                      <option value="top-left">Top Left</option>
-                      <option value="top-center">Top Center</option>
-                      <option value="center">Center</option>
-                    </select>
-                  </div>
-
-                  <!-- Scale to Fit Toggle -->
-                  <div class="flex items-center">
-                    <input
-                      v-model="normalizationStrategy.scaleToFit"
-                      type="checkbox"
-                      class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                      @change="runComparison"
-                    />
-                    <label class="ml-2 text-sm text-gray-700">
-                      Scale to fit (preserve aspect ratio)
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Dimension Info Display -->
-                <div
-                  v-if="dimensionInfo"
-                  class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm"
-                >
-                  <div class="font-semibold text-blue-900 mb-2">PDF Dimensions:</div>
-                  <div class="grid grid-cols-2 gap-2 text-blue-800">
-                    <div>
-                      <span class="font-medium">PDF 1:</span>
-                      {{ dimensionInfo.canvas1.width }} × {{ dimensionInfo.canvas1.height }}
-                    </div>
-                    <div>
-                      <span class="font-medium">PDF 2:</span>
-                      {{ dimensionInfo.canvas2.width }} × {{ dimensionInfo.canvas2.height }}
-                    </div>
-                  </div>
-                  <div class="mt-2 font-semibold text-blue-900">
-                    Normalized: {{ dimensionInfo.targetWidth }} × {{ dimensionInfo.targetHeight }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </div>
-    </div>
-
-    <!-- Comparison Results (Collapsible) -->
-    <div v-if="stats" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-      <button
-        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-        @click="statsExpanded = !statsExpanded"
-      >
-        <h3 class="text-lg font-semibold text-gray-800">Comparison Results</h3>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5 text-gray-600 transition-transform duration-200"
-          :class="{ 'rotate-180': !statsExpanded }"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+        <button
+          class="px-6 py-4 font-medium text-sm transition-colors border-b-2"
+          :class="
+            activeTab === 1
+              ? 'text-primary-600 border-primary-600'
+              : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+          "
+          @click="activeTab = 1"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+          Results
+        </button>
+        <button
+          class="px-6 py-4 font-medium text-sm transition-colors border-b-2"
+          :class="
+            activeTab === 2
+              ? 'text-primary-600 border-primary-600'
+              : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+          "
+          @click="activeTab = 2"
+        >
+          Metadata
+        </button>
+      </div>
 
-      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
-        <div v-show="statsExpanded" class="overflow-hidden">
-          <div class="p-6 pt-2">
+      <!-- Tab Content -->
+      <div class="p-6">
+        <!-- Settings Tab -->
+        <div v-show="activeTab === 0">
+          <!-- Diff Mode Selection -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
+            <select
+              v-model="diffOptions.mode"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              @change="runComparison"
+            >
+              <option value="pixel">Pixel Difference</option>
+              <option value="threshold">Threshold Mode</option>
+              <option value="grayscale">Grayscale Diff</option>
+              <option value="overlay">Color Overlay</option>
+              <option value="heatmap">Heatmap</option>
+              <option value="semantic">Semantic Diff (Additions/Deletions/Modifications)</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">{{ getModeDescription(diffOptions.mode) }}</p>
+          </div>
+
+          <!-- Advanced Settings (Collapsible) -->
+          <div class="border-t border-gray-200 pt-4">
+            <button
+              class="w-full flex items-center justify-between hover:bg-gray-50 transition-colors p-2 rounded"
+              @click="advancedSettingsExpanded = !advancedSettingsExpanded"
+            >
+              <span class="text-sm font-medium text-gray-700">Advanced Settings</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 text-gray-600 transition-transform duration-200"
+                :class="{ 'rotate-180': !advancedSettingsExpanded }"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+
+            <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
+              <div v-show="advancedSettingsExpanded" class="overflow-hidden">
+                <div class="pt-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Threshold Slider -->
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Sensitivity Threshold: {{ diffOptions.threshold }}
+                      </label>
+                      <input
+                        v-model.number="diffOptions.threshold"
+                        type="range"
+                        min="0"
+                        max="255"
+                        step="1"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        @input="runComparison"
+                      />
+                      <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Less Sensitive</span>
+                        <span>More Sensitive</span>
+                      </div>
+                    </div>
+
+                    <!-- Overlay Opacity Slider (only for overlay mode) -->
+                    <div v-if="diffOptions.mode === 'overlay'">
+                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Overlay Opacity: {{ (diffOptions.overlayOpacity * 100).toFixed(0) }}%
+                      </label>
+                      <input
+                        v-model.number="diffOptions.overlayOpacity"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        @input="runComparison"
+                      />
+                    </div>
+
+                    <!-- Grayscale Toggle -->
+                    <div class="flex items-center">
+                      <input
+                        v-model="diffOptions.useGrayscale"
+                        type="checkbox"
+                        class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        @change="runComparison"
+                      />
+                      <label class="ml-2 text-sm text-gray-700">
+                        Convert to grayscale before comparing
+                      </label>
+                    </div>
+
+                    <!-- Sync Panning Toggle -->
+                    <div class="flex items-center">
+                      <input
+                        v-model="syncPanningEnabled"
+                        type="checkbox"
+                        class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <label class="ml-2 text-sm text-gray-700"> Sync panning between PDFs </label>
+                    </div>
+
+                    <!-- Swipe Mode Toggle -->
+                    <div class="flex items-center">
+                      <input
+                        v-model="swipeModeEnabled"
+                        type="checkbox"
+                        class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <label class="ml-2 text-sm text-gray-700">
+                        Enable swipe comparison mode
+                      </label>
+                    </div>
+
+                    <!-- Magnifier Toggle -->
+                    <div class="flex items-center">
+                      <input
+                        v-model="magnifierEnabled"
+                        type="checkbox"
+                        class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <label class="ml-2 text-sm text-gray-700"> Enable magnifier zoom lens </label>
+                    </div>
+
+                    <!-- Animation Toggle -->
+                    <div class="flex items-center">
+                      <input
+                        v-model="animationEnabled"
+                        type="checkbox"
+                        class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <label class="ml-2 text-sm text-gray-700">
+                        Animate differences (blink)
+                      </label>
+                    </div>
+
+                    <!-- Magnifier Settings (only shown when magnifier is enabled) -->
+                    <div
+                      v-if="magnifierEnabled"
+                      class="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                    >
+                      <h4 class="text-sm font-semibold text-blue-900 mb-3">Magnifier Settings</h4>
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium text-blue-900 mb-2">
+                            Zoom Level: {{ magnifierZoom }}x
+                          </label>
+                          <input
+                            v-model.number="magnifierZoom"
+                            type="range"
+                            min="1.5"
+                            max="5"
+                            step="0.5"
+                            class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium text-blue-900 mb-2">
+                            Lens Size: {{ magnifierSize }}px
+                          </label>
+                          <input
+                            v-model.number="magnifierSize"
+                            type="range"
+                            min="100"
+                            max="300"
+                            step="25"
+                            class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Animation Speed Slider (only shown when animation is enabled) -->
+                    <div v-if="animationEnabled">
+                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Animation Speed: {{ animationSpeed }}ms
+                      </label>
+                      <input
+                        v-model.number="animationSpeed"
+                        type="range"
+                        min="200"
+                        max="2000"
+                        step="100"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Faster</span>
+                        <span>Slower</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Layout Normalization Settings -->
+                  <div class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h3 class="text-sm font-semibold text-gray-800 mb-3">Layout Normalization</h3>
+                    <p class="text-xs text-gray-600 mb-4">
+                      Handles PDFs with different dimensions by aligning and scaling appropriately
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <!-- Strategy Selection -->
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Strategy</label>
+                        <select
+                          v-model="normalizationStrategy.type"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                          @change="runComparison"
+                        >
+                          <option value="largest">Use Largest Dimensions</option>
+                          <option value="smallest">Use Smallest Dimensions</option>
+                          <option value="first">Match PDF 1</option>
+                          <option value="second">Match PDF 2</option>
+                        </select>
+                      </div>
+
+                      <!-- Alignment Selection -->
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2"
+                          >Alignment</label
+                        >
+                        <select
+                          v-model="normalizationStrategy.alignment"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                          @change="runComparison"
+                        >
+                          <option value="top-left">Top Left</option>
+                          <option value="top-center">Top Center</option>
+                          <option value="center">Center</option>
+                        </select>
+                      </div>
+
+                      <!-- Scale to Fit Toggle -->
+                      <div class="flex items-center">
+                        <input
+                          v-model="normalizationStrategy.scaleToFit"
+                          type="checkbox"
+                          class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          @change="runComparison"
+                        />
+                        <label class="ml-2 text-sm text-gray-700">
+                          Scale to fit (preserve aspect ratio)
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- Dimension Info Display -->
+                    <div
+                      v-if="dimensionInfo"
+                      class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm"
+                    >
+                      <div class="font-semibold text-blue-900 mb-2">PDF Dimensions:</div>
+                      <div class="grid grid-cols-2 gap-2 text-blue-800">
+                        <div>
+                          <span class="font-medium">PDF 1:</span>
+                          {{ dimensionInfo.canvas1.width }} × {{ dimensionInfo.canvas1.height }}
+                        </div>
+                        <div>
+                          <span class="font-medium">PDF 2:</span>
+                          {{ dimensionInfo.canvas2.width }} × {{ dimensionInfo.canvas2.height }}
+                        </div>
+                      </div>
+                      <div class="mt-2 font-semibold text-blue-900">
+                        Normalized: {{ dimensionInfo.targetWidth }} ×
+                        {{ dimensionInfo.targetHeight }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- Results Tab -->
+        <div v-show="activeTab === 1">
+          <div v-if="stats">
             <div class="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <span class="text-gray-600">Different Pixels:</span>
@@ -379,17 +401,107 @@
               </div>
             </div>
           </div>
+          <div v-else class="text-gray-500 text-sm">
+            No comparison results yet. Upload PDFs to compare.
+          </div>
         </div>
-      </transition>
+
+        <!-- Metadata Tab -->
+        <div v-show="activeTab === 2">
+          <div v-if="leftMetadata && rightMetadata">
+            <PdfMetadataDiff
+              :left-metadata="leftMetadata"
+              :right-metadata="rightMetadata"
+              :left-file-name="leftFile?.name || 'PDF 1'"
+              :right-file-name="rightFile?.name || 'PDF 2'"
+            />
+          </div>
+          <div v-else class="text-gray-500 text-sm">
+            No metadata available. Upload PDFs to compare.
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Export Controls (Collapsible) -->
-    <div v-if="stats" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <!-- Difference View -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4">
+      <div class="mb-3 text-lg font-semibold text-gray-800">
+        {{ swipeModeEnabled ? 'Swipe Comparison' : 'Difference View' }}
+      </div>
+
+      <!-- Zoom Controls for Diff View -->
+      <div v-if="!swipeModeEnabled" class="mb-3">
+        <PdfViewerControls v-model="diffZoom" />
+      </div>
+
+      <!-- Swipe Comparison Mode -->
+      <div v-if="swipeModeEnabled">
+        <PdfSwipeCompare
+          :canvas1="leftCanvasComponent?.canvas"
+          :canvas2="rightCanvasComponent?.canvas"
+          :zoom="sourceZoom"
+          orientation="vertical"
+        />
+      </div>
+
+      <!-- Diff Canvas (Normal Mode) -->
+      <div
+        v-else
+        class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative"
+      >
+        <!-- Loading overlay -->
+        <div
+          v-if="isRecomputingDiff"
+          class="absolute inset-0 bg-white/80 flex items-center justify-center z-10"
+        >
+          <div class="flex items-center gap-2 text-sm text-gray-700">
+            <svg
+              class="animate-spin h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Re-rendering at {{ diffZoom }}%...
+          </div>
+        </div>
+
+        <!-- Canvas with magnifier (if enabled) -->
+        <PdfMagnifier
+          v-if="magnifierEnabled"
+          :canvas="diffCanvas"
+          :magnification="magnifierZoom"
+          :size="magnifierSize"
+          :enabled="magnifierEnabled"
+        >
+          <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
+        </PdfMagnifier>
+
+        <!-- Canvas without magnifier -->
+        <canvas v-else ref="diffCanvas" :style="diffCanvasStyle"></canvas>
+      </div>
+    </div>
+
+    <!-- Export Options (Collapsible) -->
+    <div v-if="stats" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
       <button
         class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
         @click="exportExpanded = !exportExpanded"
       >
-        <h3 class="text-lg font-semibold text-gray-800">Export Diff Image</h3>
+        <h3 class="text-lg font-semibold text-gray-800">Export Options</h3>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="h-5 w-5 text-gray-600 transition-transform duration-200"
@@ -588,122 +700,6 @@
         </div>
       </transition>
     </div>
-
-    <!-- Metadata Comparison (Collapsible) -->
-    <div
-      v-if="leftMetadata && rightMetadata"
-      class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6"
-    >
-      <button
-        class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-        @click="metadataExpanded = !metadataExpanded"
-      >
-        <h3 class="text-lg font-semibold text-gray-800">Metadata Comparison</h3>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5 text-gray-600 transition-transform duration-200"
-          :class="{ 'rotate-180': !metadataExpanded }"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
-
-      <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
-        <div v-show="metadataExpanded" class="overflow-hidden">
-          <div class="p-6 pt-2">
-            <PdfMetadataDiff
-              :left-metadata="leftMetadata"
-              :right-metadata="rightMetadata"
-              :left-file-name="leftFile?.name || 'PDF 1'"
-              :right-file-name="rightFile?.name || 'PDF 2'"
-            />
-          </div>
-        </div>
-      </transition>
-    </div>
-
-    <!-- Canvas Display - Difference View -->
-    <div class="space-y-6">
-      <!-- Difference View Full Width -->
-      <div class="relative">
-        <div class="mb-3 text-sm font-semibold text-gray-700">
-          {{ swipeModeEnabled ? 'Swipe Comparison' : 'Difference View' }}
-        </div>
-
-        <!-- Zoom Controls for Diff View -->
-        <div v-if="!swipeModeEnabled" class="mb-3">
-          <PdfViewerControls v-model="diffZoom" />
-        </div>
-
-        <!-- Swipe Comparison Mode -->
-        <div v-if="swipeModeEnabled">
-          <PdfSwipeCompare
-            :canvas1="leftCanvasComponent?.canvas"
-            :canvas2="rightCanvasComponent?.canvas"
-            :zoom="sourceZoom"
-            orientation="vertical"
-          />
-        </div>
-
-        <!-- Diff Canvas (Normal Mode) -->
-        <div
-          v-else
-          class="canvas-wrapper border border-gray-300 rounded-lg overflow-auto bg-gray-50 relative"
-        >
-          <!-- Loading overlay -->
-          <div
-            v-if="isRecomputingDiff"
-            class="absolute inset-0 bg-white/80 flex items-center justify-center z-10"
-          >
-            <div class="flex items-center gap-2 text-sm text-gray-700">
-              <svg
-                class="animate-spin h-5 w-5"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                ></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Re-rendering at {{ diffZoom }}%...
-            </div>
-          </div>
-
-          <!-- Canvas with magnifier (if enabled) -->
-          <PdfMagnifier
-            v-if="magnifierEnabled"
-            :canvas="diffCanvas"
-            :magnification="magnifierZoom"
-            :size="magnifierSize"
-            :enabled="magnifierEnabled"
-          >
-            <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
-          </PdfMagnifier>
-
-          <!-- Canvas without magnifier -->
-          <canvas v-else ref="diffCanvas" :style="diffCanvasStyle"></canvas>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -763,9 +759,10 @@ const sourcePdfsExpanded = ref(true)
 
 // Collapsible sections state
 const advancedSettingsExpanded = ref(false)
-const statsExpanded = ref(false)
 const exportExpanded = ref(false)
-const metadataExpanded = ref(false)
+
+// Active tab for tabbed interface (0 = Settings, 1 = Results, 2 = Metadata)
+const activeTab = ref(0)
 
 // Swipe mode state
 const swipeModeEnabled = ref(false)
