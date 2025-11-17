@@ -84,9 +84,9 @@ const validateFile = (file: File): boolean => {
     return false
   }
 
-  if (file.size > 50 * 1024 * 1024) {
-    // 50MB limit
-    error.value = 'File size must be less than 50MB'
+  if (file.size > 200 * 1024 * 1024) {
+    // 200MB limit
+    error.value = 'File size must be less than 200MB'
     return false
   }
 

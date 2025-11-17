@@ -147,7 +147,7 @@ Shows difference intensity using a color gradient (blue for identical, red for v
 
 - Only compares the first page of each PDF
 - No multi-page support
-- Files must be under 50MB
+- Files must be under 200MB
 - Basic error handling
 - Comparison happens entirely in browser (may be slow for large PDFs)
 

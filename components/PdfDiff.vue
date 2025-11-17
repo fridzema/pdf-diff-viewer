@@ -839,8 +839,15 @@ useScrollSync(leftWrapper, rightWrapper, { enabled: syncPanningEnabled })
 // CSS scaling for diff canvas during debounce (instant zoom feedback)
 const diffCanvasStyle = computed(() => {
   // Calculate scale ratio for immediate visual feedback
-  const transformScale =
-    isDiffDebouncing.value && diffRenderZoom.value > 0 ? diffZoom.value / diffRenderZoom.value : 1
+  // Guard against division by zero or invalid scale values
+  let transformScale = 1
+  if (isDiffDebouncing.value && diffRenderZoom.value > 0 && diffZoom.value > 0) {
+    transformScale = diffZoom.value / diffRenderZoom.value
+    // Ensure scale is a valid number
+    if (!isFinite(transformScale) || transformScale <= 0) {
+      transformScale = 1
+    }
+  }
 
   return {
     display: 'block',
@@ -928,9 +935,13 @@ const stopAnimation = () => {
   if (diffImageData.value && diffCanvas.value) {
     showingDiff.value = true
     const ctx = diffCanvas.value.getContext('2d', { willReadFrequently: true })
-    if (ctx) {
-      const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
-      ctx.putImageData(imageData, 0, 0)
+    if (ctx && canvasWidth.value > 0 && canvasHeight.value > 0) {
+      try {
+        const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
+        ctx.putImageData(imageData, 0, 0)
+      } catch (err) {
+        logger.error('Failed to restore diff canvas:', err)
+      }
     }
   }
 }
@@ -1124,13 +1135,46 @@ watch(sourceZoom, async () => {
     // Clear previous timeout to avoid race conditions
     if (zoomTimeoutId.value) clearTimeout(zoomTimeoutId.value)
 
-    // Add a small delay to ensure rendering completes
-    zoomTimeoutId.value = setTimeout(() => {
-      runComparison()
-      // Update diff render zoom to match source zoom
-      diffRenderZoom.value = sourceZoom.value
-      zoomTimeoutId.value = null
-    }, 300) as unknown as number
+    // Poll for canvas readiness to ensure both canvases have finished re-rendering
+    // at the new zoom level before running comparison
+    let attempts = 0
+    const maxAttempts = 20 // 20 * 150ms = 3 seconds max wait
+    const targetZoom = sourceZoom.value
+
+    const checkAndRunComparison = () => {
+      const leftReady = leftCanvasComponent.value?.isReady
+      const rightReady = rightCanvasComponent.value?.isReady
+      const leftZoom = leftCanvasComponent.value?.zoom
+      const rightZoom = rightCanvasComponent.value?.zoom
+
+      logger.log(`Canvas readiness check after zoom (attempt ${attempts + 1}/${maxAttempts}):`, {
+        leftReady,
+        rightReady,
+        leftZoom,
+        rightZoom,
+        targetZoom,
+      })
+
+      // Only run comparison when:
+      // 1. Both canvases are ready (rendered)
+      // 2. Both canvases are at the target zoom level
+      if (leftReady && rightReady && leftZoom === targetZoom && rightZoom === targetZoom) {
+        logger.log('Both canvases ready at target zoom, running comparison...')
+        runComparison()
+        // Update diff render zoom to match source zoom
+        diffRenderZoom.value = sourceZoom.value
+        zoomTimeoutId.value = null
+      } else if (attempts < maxAttempts) {
+        attempts++
+        zoomTimeoutId.value = setTimeout(checkAndRunComparison, 150) as unknown as number
+      } else {
+        logger.error('Canvases not ready at target zoom after', maxAttempts, 'attempts')
+        zoomTimeoutId.value = null
+      }
+    }
+
+    // Start polling for canvas readiness
+    checkAndRunComparison()
   }
 })
 

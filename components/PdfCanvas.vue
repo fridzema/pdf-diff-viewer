@@ -169,11 +169,13 @@ watchEffect(async () => {
 const canvasElement = computed(() => canvasRef.value)
 const canvasWrapper = computed(() => canvasWrapperRef.value)
 const isReady = computed(() => !!canvasRef.value && isPdfRendered.value)
+const currentZoom = computed(() => localZoom.value)
 
 defineExpose({
   canvas: canvasElement,
   canvasWrapper: canvasWrapper,
   isReady: isReady,
+  zoom: currentZoom,
 })
 </script>
 
