@@ -65,9 +65,9 @@ export function usePdfDiffWorker() {
 
       const { normalizedCanvas1, normalizedCanvas2 } = normalizeCanvases(canvas1, canvas2, strategy)
 
-      const ctx1 = normalizedCanvas1.getContext('2d', { willReadFrequently: true })
-      const ctx2 = normalizedCanvas2.getContext('2d', { willReadFrequently: true })
-      const diffCtx = diffCanvas.getContext('2d', { willReadFrequently: true })
+      const ctx1 = normalizedCanvas1.getContext('2d')
+      const ctx2 = normalizedCanvas2.getContext('2d')
+      const diffCtx = diffCanvas.getContext('2d')
 
       if (!ctx1 || !ctx2 || !diffCtx) {
         reject(new Error('Failed to get canvas contexts'))

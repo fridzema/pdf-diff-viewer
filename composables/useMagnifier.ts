@@ -28,6 +28,10 @@ export function useMagnifier(
   // Magnifier canvas for rendering zoomed content
   const magnifierCanvas = ref<HTMLCanvasElement | null>(null)
 
+  // RAF throttling for mousemove
+  let rafId: number | null = null
+  let pendingEvent: MouseEvent | null = null
+
   /**
    * Magnifier position style (centered on cursor)
    */
@@ -93,11 +97,23 @@ export function useMagnifier(
   }
 
   /**
-   * Handle mouse move
+   * Handle mouse move (throttled with requestAnimationFrame)
    */
   const handleMouseMove = (e: MouseEvent) => {
-    if (isActive.value) {
-      updateMagnifier(e)
+    if (!isActive.value) return
+
+    // Store the latest event
+    pendingEvent = e
+
+    // Only schedule a new frame if one isn't already pending
+    if (rafId === null) {
+      rafId = requestAnimationFrame(() => {
+        if (pendingEvent) {
+          updateMagnifier(pendingEvent)
+          pendingEvent = null
+        }
+        rafId = null
+      })
     }
   }
 
@@ -172,6 +188,12 @@ export function useMagnifier(
    * Clean up
    */
   onUnmounted(() => {
+    // Cancel any pending RAF
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    pendingEvent = null
     magnifierCanvas.value = null
   })
 
