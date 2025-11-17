@@ -37,11 +37,29 @@ export interface MetadataComparison {
   identical: string[]
 }
 
+// Cache for metadata extraction to avoid re-processing the same files
+const metadataCache = new Map<string, PdfMetadata>()
+
 export const usePdfMetadata = () => {
   /**
-   * Extract metadata from a PDF file
+   * Generate a cache key for a file based on its characteristics
+   */
+  const generateCacheKey = (file: File): string => {
+    return `${file.name}:${file.size}:${file.lastModified}`
+  }
+
+  /**
+   * Extract metadata from a PDF file with caching
    */
   const extractMetadata = async (file: File): Promise<PdfMetadata> => {
+    // Check cache first
+    const cacheKey = generateCacheKey(file)
+    const cached = metadataCache.get(cacheKey)
+    if (cached) {
+      console.log('Using cached metadata for:', file.name)
+      return cached
+    }
+
     try {
       const arrayBuffer = await file.arrayBuffer()
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
@@ -73,11 +91,17 @@ export const usePdfMetadata = () => {
         })
       }
 
-      return {
+      const result = {
         info: normalizedInfo,
         xmp: xmpData,
         raw: { info, metadata },
       }
+
+      // Store in cache
+      metadataCache.set(cacheKey, result)
+      console.log('Cached metadata for:', file.name)
+
+      return result
     } catch (error) {
       console.error('Error extracting metadata:', error)
       throw error
