@@ -97,7 +97,7 @@
       <!-- Tab Content -->
       <div class="p-6">
         <!-- Settings Tab -->
-        <div v-if="activeTab === 0">
+        <div v-show="activeTab === 0">
           <!-- Diff Mode Selection -->
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-2"> Comparison Mode </label>
@@ -375,7 +375,7 @@
         </div>
 
         <!-- Results Tab -->
-        <div v-if="activeTab === 1">
+        <div v-show="activeTab === 1">
           <div v-if="stats">
             <div class="grid grid-cols-3 gap-4 text-sm">
               <div>
@@ -407,7 +407,7 @@
         </div>
 
         <!-- Metadata Tab -->
-        <div v-if="activeTab === 2">
+        <div v-show="activeTab === 2">
           <div v-if="leftMetadata && rightMetadata">
             <PdfMetadataDiff
               :left-metadata="leftMetadata"
@@ -479,9 +479,8 @@
           </div>
         </div>
 
-        <!-- Canvas with magnifier (if enabled) -->
+        <!-- Canvas with optional magnifier (single canvas, no switching) -->
         <PdfMagnifier
-          v-if="magnifierEnabled"
           :canvas="diffCanvas"
           :magnification="magnifierZoom"
           :size="magnifierSize"
@@ -489,9 +488,6 @@
         >
           <canvas ref="diffCanvas" :style="diffCanvasStyle"></canvas>
         </PdfMagnifier>
-
-        <!-- Canvas without magnifier -->
-        <canvas v-else ref="diffCanvas" :style="diffCanvasStyle"></canvas>
       </div>
     </div>
 
@@ -738,10 +734,6 @@ const diffZoom = ref(100) // Independent zoom for difference view
 const diffRenderZoom = ref(100) // Actual rendered zoom of diff canvas
 const isRecomputingDiff = ref(false)
 
-// Timeout tracking for cleanup (prevent memory leaks)
-const pollingTimeoutId = ref<number | null>(null)
-const zoomTimeoutId = ref<number | null>(null)
-
 // Debounce diff zoom for smart re-rendering
 const debouncedDiffZoom = useDebounce(
   computed(() => diffZoom.value),
@@ -776,7 +768,8 @@ const magnifierSize = ref(200)
 const animationEnabled = ref(false)
 const animationSpeed = ref(500) // milliseconds
 const showingDiff = ref(true)
-const animationIntervalId = ref<number | null>(null)
+const animationFrameId = ref<number | null>(null)
+const lastAnimationTime = ref(0)
 const diffImageData = ref<Uint8ClampedArray | null>(null)
 const originalImageData = ref<Uint8ClampedArray | null>(null)
 const canvasWidth = ref(0)
@@ -891,40 +884,65 @@ const getModeDescription = (mode: DiffMode): string => {
   return descriptions[mode]
 }
 
-// Animation control functions
+// Animation control functions using requestAnimationFrame
+const animate = (timestamp: number) => {
+  if (!diffCanvas.value || !diffImageData.value || !originalImageData.value) {
+    stopAnimation()
+    return
+  }
+
+  // Calculate elapsed time since last toggle
+  if (lastAnimationTime.value === 0) {
+    lastAnimationTime.value = timestamp
+  }
+
+  const elapsed = timestamp - lastAnimationTime.value
+
+  // Toggle when enough time has passed
+  if (elapsed >= animationSpeed.value) {
+    const ctx = diffCanvas.value.getContext('2d')
+    if (ctx) {
+      // Toggle between showing diff and original
+      showingDiff.value = !showingDiff.value
+
+      const dataToShow = showingDiff.value ? diffImageData.value : originalImageData.value
+      if (dataToShow) {
+        const imageData = new ImageData(dataToShow, canvasWidth.value, canvasHeight.value)
+        ctx.putImageData(imageData, 0, 0)
+      }
+    }
+
+    lastAnimationTime.value = timestamp
+  }
+
+  // Continue animation loop
+  animationFrameId.value = requestAnimationFrame(animate)
+}
+
 const startAnimation = () => {
   if (!diffImageData.value || !originalImageData.value || !diffCanvas.value) {
     logger.warn('Cannot start animation: missing image data or canvas')
     return
   }
 
-  // Clear any existing interval
+  // Clear any existing animation
   stopAnimation()
 
   logger.log('Starting blink animation at', animationSpeed.value, 'ms interval')
 
-  // Create the animation interval
-  animationIntervalId.value = setInterval(() => {
-    if (!diffCanvas.value) return
+  // Reset animation state
+  lastAnimationTime.value = 0
+  showingDiff.value = true
 
-    const ctx = diffCanvas.value.getContext('2d')
-    if (!ctx) return
-
-    // Toggle between showing diff and original
-    showingDiff.value = !showingDiff.value
-
-    const dataToShow = showingDiff.value ? diffImageData.value : originalImageData.value
-    if (dataToShow) {
-      const imageData = new ImageData(dataToShow, canvasWidth.value, canvasHeight.value)
-      ctx.putImageData(imageData, 0, 0)
-    }
-  }, animationSpeed.value) as unknown as number
+  // Start animation loop
+  animationFrameId.value = requestAnimationFrame(animate)
 }
 
 const stopAnimation = () => {
-  if (animationIntervalId.value !== null) {
-    clearInterval(animationIntervalId.value)
-    animationIntervalId.value = null
+  if (animationFrameId.value !== null) {
+    cancelAnimationFrame(animationFrameId.value)
+    animationFrameId.value = null
+    lastAnimationTime.value = 0
     logger.log('Stopped blink animation')
   }
 
@@ -1079,43 +1097,27 @@ const runComparison = async () => {
 // Auto-run comparison when both files become available
 watch(
   canCompare,
-  async (canNowCompare, oldValue) => {
-    logger.log('watch(canCompare) triggered:', { canNowCompare, oldValue })
+  async (canNowCompare) => {
+    logger.log('watch(canCompare) triggered:', { canNowCompare })
     if (canNowCompare) {
       logger.log('Both files available, waiting for canvases to be ready...')
 
       // Wait for next tick to ensure component updates
       await nextTick()
 
-      // Poll for canvas readiness (max 10 attempts, 200ms each = 2 seconds)
-      let attempts = 0
-      const maxAttempts = 10
-
-      const checkAndRun = () => {
-        const leftReady = leftCanvasComponent.value?.isReady
-        const rightReady = rightCanvasComponent.value?.isReady
-
-        logger.log(`Canvas readiness check (attempt ${attempts + 1}/${maxAttempts}):`, {
-          leftReady,
-          rightReady,
-        })
-
-        if (leftReady && rightReady) {
+      // Use readiness poller utility
+      const poller = useReadinessPoller({
+        condition: () => leftCanvasComponent.value?.isReady && rightCanvasComponent.value?.isReady,
+        onReady: () => {
           logger.log('Both canvases ready, running initial comparison...')
           runComparison()
-          pollingTimeoutId.value = null
-        } else if (attempts < maxAttempts) {
-          attempts++
-          // Clear previous timeout and set new one
-          if (pollingTimeoutId.value) clearTimeout(pollingTimeoutId.value)
-          pollingTimeoutId.value = setTimeout(checkAndRun, 200) as unknown as number
-        } else {
-          logger.error('Canvases not ready after', maxAttempts, 'attempts')
-          pollingTimeoutId.value = null
-        }
-      }
+        },
+        onTimeout: () => {
+          logger.error('Canvases not ready after maximum attempts')
+        },
+      })
 
-      checkAndRun()
+      poller.start()
     }
   },
   { immediate: true }
@@ -1129,49 +1131,33 @@ watch(sourceZoom, async () => {
     // Wait for PDFs to re-render at new zoom level
     await nextTick()
 
-    // Clear previous timeout to avoid race conditions
-    if (zoomTimeoutId.value) clearTimeout(zoomTimeoutId.value)
-
-    // Poll for canvas readiness to ensure both canvases have finished re-rendering
-    // at the new zoom level before running comparison
-    let attempts = 0
-    const maxAttempts = 20 // 20 * 150ms = 3 seconds max wait
     const targetZoom = sourceZoom.value
 
-    const checkAndRunComparison = () => {
-      const leftReady = leftCanvasComponent.value?.isReady
-      const rightReady = rightCanvasComponent.value?.isReady
-      const leftZoom = leftCanvasComponent.value?.zoom
-      const rightZoom = rightCanvasComponent.value?.zoom
+    // Use readiness poller utility with zoom-specific condition
+    const poller = useReadinessPoller({
+      maxAttempts: 20,
+      interval: 150,
+      condition: () => {
+        const leftReady = leftCanvasComponent.value?.isReady
+        const rightReady = rightCanvasComponent.value?.isReady
+        const leftZoom = leftCanvasComponent.value?.zoom
+        const rightZoom = rightCanvasComponent.value?.zoom
 
-      logger.log(`Canvas readiness check after zoom (attempt ${attempts + 1}/${maxAttempts}):`, {
-        leftReady,
-        rightReady,
-        leftZoom,
-        rightZoom,
-        targetZoom,
-      })
-
-      // Only run comparison when:
-      // 1. Both canvases are ready (rendered)
-      // 2. Both canvases are at the target zoom level
-      if (leftReady && rightReady && leftZoom === targetZoom && rightZoom === targetZoom) {
+        // Only ready when both canvases are at the target zoom level
+        return leftReady && rightReady && leftZoom === targetZoom && rightZoom === targetZoom
+      },
+      onReady: () => {
         logger.log('Both canvases ready at target zoom, running comparison...')
         runComparison()
         // Update diff render zoom to match source zoom
         diffRenderZoom.value = sourceZoom.value
-        zoomTimeoutId.value = null
-      } else if (attempts < maxAttempts) {
-        attempts++
-        zoomTimeoutId.value = setTimeout(checkAndRunComparison, 150) as unknown as number
-      } else {
-        logger.error('Canvases not ready at target zoom after', maxAttempts, 'attempts')
-        zoomTimeoutId.value = null
-      }
-    }
+      },
+      onTimeout: () => {
+        logger.error('Canvases not ready at target zoom after maximum attempts')
+      },
+    })
 
-    // Start polling for canvas readiness
-    checkAndRunComparison()
+    poller.start()
   }
 })
 
@@ -1220,31 +1206,6 @@ watch(animationSpeed, () => {
   if (animationEnabled.value) {
     // Restart animation with new speed
     startAnimation()
-  }
-})
-
-// Watch magnifier toggle to restore canvas content
-watch(magnifierEnabled, async () => {
-  // When magnifier is toggled, the canvas element is recreated due to v-if/v-else
-  // We need to restore the diff data to the new canvas element
-  await nextTick() // Wait for DOM update
-
-  if (diffImageData.value && diffCanvas.value && canvasWidth.value > 0 && canvasHeight.value > 0) {
-    const ctx = diffCanvas.value.getContext('2d')
-    if (ctx) {
-      try {
-        // Restore canvas dimensions
-        diffCanvas.value.width = canvasWidth.value
-        diffCanvas.value.height = canvasHeight.value
-
-        // Restore the diff image data
-        const imageData = new ImageData(diffImageData.value, canvasWidth.value, canvasHeight.value)
-        ctx.putImageData(imageData, 0, 0)
-        logger.log('Restored diff canvas after magnifier toggle')
-      } catch (err) {
-        logger.error('Failed to restore diff canvas after magnifier toggle:', err)
-      }
-    }
   }
 })
 
@@ -1323,45 +1284,25 @@ onMounted(async () => {
     logger.log('Component mounted with files already loaded, triggering comparison...')
     await nextTick()
 
-    // Wait for canvases to be ready
-    let attempts = 0
-    const maxAttempts = 10
-
-    const checkAndRun = () => {
-      const leftReady = leftCanvasComponent.value?.isReady
-      const rightReady = rightCanvasComponent.value?.isReady
-
-      logger.log(`Canvas readiness check on mount (attempt ${attempts + 1}/${maxAttempts}):`, {
-        leftReady,
-        rightReady,
-      })
-
-      if (leftReady && rightReady) {
+    // Use readiness poller utility
+    const poller = useReadinessPoller({
+      condition: () => leftCanvasComponent.value?.isReady && rightCanvasComponent.value?.isReady,
+      onReady: () => {
         logger.log('Both canvases ready on mount, running comparison...')
         runComparison()
-      } else if (attempts < maxAttempts) {
-        attempts++
-        setTimeout(checkAndRun, 200)
-      } else {
-        logger.warn('Canvases not ready after', maxAttempts, 'attempts on mount')
-      }
-    }
+      },
+      onTimeout: () => {
+        logger.warn('Canvases not ready after maximum attempts on mount')
+      },
+    })
 
-    checkAndRun()
+    poller.start()
   }
 })
 
-// Clean up timeouts and animation when component unmounts (prevent memory leaks)
+// Clean up animation when component unmounts (prevent memory leaks)
 onBeforeUnmount(() => {
-  if (pollingTimeoutId.value) {
-    clearTimeout(pollingTimeoutId.value)
-    pollingTimeoutId.value = null
-  }
-  if (zoomTimeoutId.value) {
-    clearTimeout(zoomTimeoutId.value)
-    zoomTimeoutId.value = null
-  }
-  // Stop animation on unmount
+  // Stop animation on unmount (cancels requestAnimationFrame)
   stopAnimation()
 })
 </script>
