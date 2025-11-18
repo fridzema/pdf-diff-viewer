@@ -1,5 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist'
+import { logger } from '~/utils/logger'
 import { createTwoFilesPatch } from 'diff'
+import { handleError } from '~/utils/errorHandler'
 
 export interface PdfMetadataInfo {
   Title?: string
@@ -37,8 +39,52 @@ export interface MetadataComparison {
   identical: string[]
 }
 
-// Cache for metadata extraction to avoid re-processing the same files
+// LRU Cache for metadata extraction to avoid re-processing the same files
+const MAX_CACHE_SIZE = 20 // Maximum number of entries
+const MAX_CACHE_BYTES = 50 * 1024 * 1024 // 50MB max cache size
 const metadataCache = new Map<string, PdfMetadata>()
+const cacheAccessOrder = new Map<string, number>() // Track access order for LRU
+let cacheByteSize = 0 // Track approximate cache size in bytes
+
+/**
+ * Estimate the size of a metadata object in bytes
+ */
+const estimateMetadataSize = (metadata: PdfMetadata): number => {
+  // Rough estimate: JSON stringify and count bytes
+  return JSON.stringify(metadata).length * 2 // UTF-16 characters
+}
+
+/**
+ * Evict least recently used entries if cache exceeds limits
+ */
+const evictLRUEntries = () => {
+  // Check if eviction is needed
+  while (metadataCache.size > MAX_CACHE_SIZE || cacheByteSize > MAX_CACHE_BYTES) {
+    // Find least recently used entry
+    let oldestKey: string | null = null
+    let oldestTime = Infinity
+
+    cacheAccessOrder.forEach((time, key) => {
+      if (time < oldestTime) {
+        oldestTime = time
+        oldestKey = key
+      }
+    })
+
+    if (oldestKey) {
+      const metadata = metadataCache.get(oldestKey)
+      if (metadata) {
+        cacheByteSize -= estimateMetadataSize(metadata)
+      }
+      metadataCache.delete(oldestKey)
+      cacheAccessOrder.delete(oldestKey)
+      logger.log(`Evicted metadata cache entry: ${oldestKey}`)
+    } else {
+      // Safety break if no key found
+      break
+    }
+  }
+}
 
 export const usePdfMetadata = () => {
   /**
@@ -56,7 +102,9 @@ export const usePdfMetadata = () => {
     const cacheKey = generateCacheKey(file)
     const cached = metadataCache.get(cacheKey)
     if (cached) {
-      console.log('Using cached metadata for:', file.name)
+      // Update access time for LRU tracking
+      cacheAccessOrder.set(cacheKey, Date.now())
+      logger.log('Using cached metadata for:', file.name)
       return cached
     }
 
@@ -74,7 +122,7 @@ export const usePdfMetadata = () => {
           const metadataObj = metadata.getAll()
           Object.assign(xmpData, metadataObj)
         } catch (e) {
-          console.warn('Could not parse XMP metadata:', e)
+          logger.warn('Could not parse XMP metadata:', e)
         }
       }
 
@@ -97,14 +145,30 @@ export const usePdfMetadata = () => {
         raw: { info, metadata },
       }
 
-      // Store in cache
+      // Store in cache with LRU tracking
+      const entrySize = estimateMetadataSize(result)
+      cacheByteSize += entrySize
       metadataCache.set(cacheKey, result)
-      console.log('Cached metadata for:', file.name)
+      cacheAccessOrder.set(cacheKey, Date.now())
+
+      // Evict old entries if cache is too large
+      evictLRUEntries()
+
+      logger.log(
+        `Cached metadata for: ${file.name} (size: ${(entrySize / 1024).toFixed(1)}KB, total cache: ${(cacheByteSize / 1024).toFixed(1)}KB)`
+      )
 
       return result
     } catch (error) {
-      console.error('Error extracting metadata:', error)
-      throw error
+      // Use structured error handling
+      const appError = handleError(error as Error, {
+        file: file.name,
+        fileSize: file.size,
+        operation: 'metadata extraction',
+      })
+
+      logger.error('Error extracting metadata:', appError)
+      throw appError
     }
   }
 

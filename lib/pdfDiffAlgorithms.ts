@@ -5,7 +5,7 @@
  */
 
 export interface DiffOptions {
-  mode: 'pixel' | 'threshold' | 'grayscale' | 'overlay' | 'heatmap'
+  mode: 'pixel' | 'threshold' | 'grayscale' | 'overlay' | 'heatmap' | 'semantic'
   threshold: number // 0-255, tolerance for pixel differences
   overlayOpacity: number // 0-1, for overlay mode
   useGrayscale: boolean
