@@ -1,12 +1,14 @@
 import * as pdfjsLib from 'pdfjs-dist'
+import { logger } from '~/utils/logger'
 
 export default defineNuxtPlugin(() => {
-  // Set up PDF.js worker - Use locally bundled worker instead of CDN for security
-  // The worker file is located in the public directory and served as a static asset
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+  // Set up PDF.js worker - Import from pdfjs-dist package for proper bundling
+  // Vite will handle asset hashing and optimization
+  const workerUrl = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.toString()
 
   if (process.env.NODE_ENV === 'development') {
-    console.log('PDF.js initialized with version:', pdfjsLib.version)
-    console.log('Worker path:', pdfjsLib.GlobalWorkerOptions.workerSrc)
+    logger.log('PDF.js initialized with version:', pdfjsLib.version)
+    logger.log('Worker path:', pdfjsLib.GlobalWorkerOptions.workerSrc)
   }
 })

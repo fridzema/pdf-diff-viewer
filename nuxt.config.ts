@@ -25,5 +25,13 @@ export default defineNuxtConfig({
     optimizeDeps: {
       include: ['pdfjs-dist'],
     },
+    worker: {
+      format: 'es',
+      rollupOptions: {
+        output: {
+          entryFileNames: 'workers/[name]-[hash].js',
+        },
+      },
+    },
   },
 })

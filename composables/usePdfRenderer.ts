@@ -1,10 +1,16 @@
+import { ref, shallowRef, markRaw, onBeforeUnmount, readonly } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
+import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import { logger } from '~/utils/logger'
+import { handleError } from '~/utils/errorHandler'
 
 // Maximum number of PDFs to cache (LRU eviction)
 const MAX_CACHE_SIZE = 10
 // Maximum number of rendered bitmaps to cache per PDF (zoom levels)
 const MAX_BITMAPS_PER_PDF = 3
+// Maximum canvas dimensions to prevent memory issues with very large PDFs
+const MAX_CANVAS_DIMENSION = 4096 // 4096x4096 is ~64MB for RGBA
+const MAX_CANVAS_PIXELS = 16 * 1024 * 1024 // 16 megapixels
 
 // Bitmap cache entry structure
 interface BitmapCacheEntry {
@@ -21,7 +27,7 @@ export const usePdfRenderer = () => {
 
   // Cache for loaded PDF documents to avoid reloading on zoom change
   // Use shallowRef to avoid deep reactivity on PDF.js objects
-  const pdfCache = shallowRef<Map<string, { pdf: any; page: any }>>(new Map())
+  const pdfCache = shallowRef<Map<string, { pdf: PDFDocumentProxy; page: PDFPageProxy }>>(new Map())
 
   // Track access order for LRU eviction (most recently used = end of array)
   const cacheAccessOrder = ref<string[]>([])
@@ -31,13 +37,60 @@ export const usePdfRenderer = () => {
   const bitmapCache = shallowRef<Map<string, BitmapCacheEntry[]>>(new Map())
 
   // Track current render task for cancellation
-  let currentRenderTask: any = null
+  let currentRenderTask: RenderTask | null = null
 
   /**
    * Rounds scale to zoom buckets (25% increments) to increase cache hits
    */
   const roundToZoomBucket = (scale: number): number => {
     return Math.round(scale * 4) / 4 // Round to nearest 0.25
+  }
+
+  /**
+   * Caps canvas dimensions to prevent memory issues
+   * Returns scaled dimensions if needed and whether capping occurred
+   */
+  const capCanvasDimensions = (
+    width: number,
+    height: number
+  ): { width: number; height: number; wasCapped: boolean } => {
+    let newWidth = width
+    let newHeight = height
+    let wasCapped = false
+
+    // Check if either dimension exceeds maximum
+    if (width > MAX_CANVAS_DIMENSION || height > MAX_CANVAS_DIMENSION) {
+      const aspectRatio = width / height
+      if (width > height) {
+        newWidth = MAX_CANVAS_DIMENSION
+        newHeight = MAX_CANVAS_DIMENSION / aspectRatio
+      } else {
+        newHeight = MAX_CANVAS_DIMENSION
+        newWidth = MAX_CANVAS_DIMENSION * aspectRatio
+      }
+      wasCapped = true
+      logger.warn(
+        `Canvas dimensions capped: ${Math.round(width)}x${Math.round(height)} → ${Math.round(newWidth)}x${Math.round(newHeight)}`
+      )
+    }
+
+    // Check if total pixels exceed maximum
+    const totalPixels = newWidth * newHeight
+    if (totalPixels > MAX_CANVAS_PIXELS) {
+      const scaleFactor = Math.sqrt(MAX_CANVAS_PIXELS / totalPixels)
+      newWidth = newWidth * scaleFactor
+      newHeight = newHeight * scaleFactor
+      wasCapped = true
+      logger.warn(
+        `Canvas pixel count capped: ${Math.round(width * height).toLocaleString()} → ${Math.round(newWidth * newHeight).toLocaleString()} pixels`
+      )
+    }
+
+    return {
+      width: Math.round(newWidth),
+      height: Math.round(newHeight),
+      wasCapped,
+    }
   }
 
   /**
@@ -238,9 +291,22 @@ export const usePdfRenderer = () => {
       const viewport = page.getViewport({ scale })
       logger.log('Viewport:', viewport.width, 'x', viewport.height)
 
-      // Set canvas dimensions
-      canvas.width = viewport.width
-      canvas.height = viewport.height
+      // Cap canvas dimensions to prevent memory issues
+      const {
+        width: cappedWidth,
+        height: cappedHeight,
+        wasCapped,
+      } = capCanvasDimensions(viewport.width, viewport.height)
+
+      if (wasCapped) {
+        logger.warn(
+          'Large PDF detected - canvas size has been reduced to prevent browser memory issues. Some quality may be lost.'
+        )
+      }
+
+      // Set canvas dimensions (capped if necessary)
+      canvas.width = cappedWidth
+      canvas.height = cappedHeight
 
       // Get canvas context
       const context = canvas.getContext('2d')
@@ -251,10 +317,17 @@ export const usePdfRenderer = () => {
       // Clear canvas before rendering
       context.clearRect(0, 0, canvas.width, canvas.height)
 
+      // If dimensions were capped, we need to use a scaled viewport
+      const renderViewport = wasCapped
+        ? page.getViewport({
+            scale: scale * (cappedWidth / viewport.width),
+          })
+        : viewport
+
       // Render the page
       const renderContext = {
         canvasContext: context,
-        viewport: viewport,
+        viewport: renderViewport,
       }
 
       // Start rendering and track the task
@@ -280,9 +353,17 @@ export const usePdfRenderer = () => {
         return // Don't treat cancellation as an error
       }
 
-      error.value = err instanceof Error ? err.message : 'Failed to render PDF'
-      logger.error('PDF rendering error:', err)
-      throw err
+      // Use structured error handling
+      const appError = handleError(err as Error, {
+        file: file.name,
+        fileSize: file.size,
+        scale,
+        canvasDimensions: `${canvas.width}x${canvas.height}`,
+      })
+
+      error.value = appError.userMessage
+      logger.error('PDF rendering error:', appError)
+      throw appError
     } finally {
       isLoading.value = false
     }

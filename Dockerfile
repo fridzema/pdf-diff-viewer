@@ -18,10 +18,10 @@ WORKDIR /app
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy source code
+# Copy source code (includes workers/ and lib/ for TypeScript compilation)
 COPY . .
 
-# Build the application
+# Build the application (Vite handles worker bundling and asset hashing)
 RUN bun run build
 
 # Stage 3: Production runner

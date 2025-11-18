@@ -2,6 +2,8 @@ import { ref, readonly, onUnmounted } from 'vue'
 import type { DiffOptions } from './usePdfDiff'
 import type { NormalizationStrategy } from './usePdfNormalization'
 import { usePdfNormalization } from './usePdfNormalization'
+import { ErrorType, createAppError } from '~/utils/errorHandler'
+import { logger } from '~/utils/logger'
 
 /**
  * Composable for using Web Worker for PDF diff computation
@@ -17,15 +19,17 @@ export function usePdfDiffWorker() {
    */
   const initWorker = () => {
     if (typeof Worker === 'undefined') {
-      console.warn('Web Workers are not supported in this environment')
+      logger.warn('Web Workers are not supported in this environment')
       return false
     }
 
     if (!worker.value) {
       try {
-        worker.value = new Worker('/workers/pdf-diff.worker.js')
+        worker.value = new Worker(new URL('~/workers/pdf-diff.worker.ts', import.meta.url), {
+          type: 'module',
+        })
       } catch (error) {
-        console.error('Failed to initialize PDF diff worker:', error)
+        logger.error('Failed to initialize PDF diff worker:', error)
         return false
       }
     }
@@ -92,38 +96,46 @@ export function usePdfDiffWorker() {
       const handleMessage = (e: MessageEvent) => {
         const { diffData, originalData, differenceCount, totalPixels, percentDiff } = e.data
 
-        // Put the diff data on the canvas
-        const resultImageData = new ImageData(new Uint8ClampedArray(diffData), width, height)
+        // diffData and originalData are Uint8ClampedArray transferred from worker
+        // No need to create new copies - use directly
+        const resultImageData = new ImageData(diffData, width, height)
         diffCtx.putImageData(resultImageData, 0, 0)
 
         isProcessing.value = false
 
         // Clean up listener
         worker.value?.removeEventListener('message', handleMessage)
-        worker.value?.removeEventListener('error', handleError)
+        worker.value?.removeEventListener('error', handleWorkerError)
 
         resolve({
           differenceCount,
           totalPixels,
           percentDiff,
-          diffData: new Uint8ClampedArray(diffData),
-          originalData: new Uint8ClampedArray(originalData),
+          diffData, // Already Uint8ClampedArray, no copy needed
+          originalData, // Already Uint8ClampedArray, no copy needed
         })
       }
 
-      const handleError = (error: ErrorEvent) => {
+      const handleWorkerError = (errorEvent: ErrorEvent) => {
         isProcessing.value = false
 
         // Clean up listeners
         worker.value?.removeEventListener('message', handleMessage)
-        worker.value?.removeEventListener('error', handleError)
+        worker.value?.removeEventListener('error', handleWorkerError)
 
-        reject(new Error(`Worker error: ${error.message}`))
+        // Create structured error
+        const appError = createAppError(ErrorType.WORKER_CRASH, new Error(errorEvent.message), {
+          diffMode: options.mode,
+          dimensions: `${width}x${height}`,
+        })
+
+        logger.error('Worker error:', appError)
+        reject(appError)
       }
 
       // Attach listeners
       worker.value.addEventListener('message', handleMessage)
-      worker.value.addEventListener('error', handleError)
+      worker.value.addEventListener('error', handleWorkerError)
 
       // Send data to worker
       // Use transferable objects for better performance

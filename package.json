@@ -8,8 +8,7 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare && npm run copy-worker",
-    "copy-worker": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
+    "postinstall": "nuxt prepare",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
@@ -45,7 +44,7 @@
     "lint-staged": "^16.2.6",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.4",
+    "typescript-eslint": "^8.47.0",
     "vitest": "^4.0.10"
   },
   "lint-staged": {
