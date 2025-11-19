@@ -1,7 +1,7 @@
-import * as pdfjsLib from 'pdfjs-dist'
 import { logger } from '~/utils/logger'
 import { createTwoFilesPatch } from 'diff'
 import { handleError } from '~/utils/errorHandler'
+import { loadPdfJs } from '~/utils/pdfjs-loader'
 
 export interface PdfMetadataInfo {
   Title?: string
@@ -109,6 +109,9 @@ export const usePdfMetadata = () => {
     }
 
     try {
+      // Lazy load PDF.js library
+      const pdfjsLib = await loadPdfJs()
+
       const arrayBuffer = await file.arrayBuffer()
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
       const pdf = await loadingTask.promise

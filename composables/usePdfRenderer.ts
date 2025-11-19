@@ -1,8 +1,8 @@
 import { ref, shallowRef, markRaw, onBeforeUnmount, readonly } from 'vue'
-import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import { logger } from '~/utils/logger'
 import { handleError } from '~/utils/errorHandler'
+import { loadPdfJs } from '~/utils/pdfjs-loader'
 
 // Maximum number of PDFs to cache (LRU eviction)
 const MAX_CACHE_SIZE = 10
@@ -250,6 +250,10 @@ export const usePdfRenderer = () => {
 
       logger.log('Bitmap cache MISS - will render via PDF.js and cache result')
 
+      // Lazy load PDF.js library (only when actually needed)
+      const pdfjsLib = await loadPdfJs()
+      logger.log('PDF.js library loaded')
+
       // Check if PDF is already loaded in cache
       if (pdfCache.value.has(cacheKey)) {
         logger.log('Using cached PDF document')
@@ -379,6 +383,9 @@ export const usePdfRenderer = () => {
     file: File,
     scale: number = 1.5
   ): Promise<{ width: number; height: number }> => {
+    // Lazy load PDF.js library
+    const pdfjsLib = await loadPdfJs()
+
     const arrayBuffer = await file.arrayBuffer()
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
     const pdf = await loadingTask.promise

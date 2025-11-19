@@ -7,13 +7,13 @@
         <!-- Collapsible Header Button -->
         <button
           class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          @click="uploadSectionExpanded = !uploadSectionExpanded"
+          @click="uiStore.toggleUploadSection()"
         >
           <h3 class="text-lg font-semibold text-gray-800">Upload PDF Files</h3>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-5 w-5 text-gray-600 transition-transform duration-200"
-            :class="{ 'rotate-180': !uploadSectionExpanded }"
+            :class="{ 'rotate-180': !uiStore.uploadSectionExpanded }"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -29,7 +29,7 @@
 
         <!-- Collapsible Content with Transition -->
         <transition name="expand" @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
-          <div v-show="uploadSectionExpanded" class="overflow-hidden">
+          <div v-show="uiStore.uploadSectionExpanded" class="overflow-hidden">
             <div class="p-6 pt-2">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Left PDF Upload -->
@@ -41,7 +41,7 @@
 
               <!-- Info Message -->
               <div
-                v-if="!leftFile || !rightFile"
+                v-if="!pdfStore.canCompare"
                 class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg"
               >
                 <div class="flex items-start">
@@ -71,13 +71,46 @@
       </div>
 
       <!-- Comparison Section -->
-      <div v-if="leftFile && rightFile">
-        <PdfDiff
-          :left-file="leftFile"
-          :right-file="rightFile"
-          :left-metadata="leftMetadata"
-          :right-metadata="rightMetadata"
-        />
+      <div v-if="pdfStore.canCompare">
+        <ClientOnly>
+          <Suspense>
+            <template #default>
+              <LazyPdfDiff
+                :left-file="pdfStore.leftFile"
+                :right-file="pdfStore.rightFile"
+                :left-metadata="pdfStore.leftMetadata"
+                :right-metadata="pdfStore.rightMetadata"
+              />
+            </template>
+            <template #fallback>
+              <div class="flex items-center justify-center p-12 bg-white rounded-lg shadow-sm">
+                <div class="text-center">
+                  <svg
+                    class="animate-spin h-8 w-8 text-primary-600 mx-auto mb-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <p class="text-gray-600">Loading comparison tools...</p>
+                </div>
+              </div>
+            </template>
+          </Suspense>
+        </ClientOnly>
       </div>
 
       <!-- Feature Info Section -->
@@ -187,45 +220,44 @@
 </template>
 
 <script setup lang="ts">
-import type { PdfMetadata } from '~/composables/usePdfMetadata'
+import { usePdfStore } from '~/stores/pdf'
+import { useUiStore } from '~/stores/ui'
 
-const leftFile = ref<File | null>(null)
-const rightFile = ref<File | null>(null)
-const leftMetadata = ref<PdfMetadata | null>(null)
-const rightMetadata = ref<PdfMetadata | null>(null)
-
-// Collapsible upload section state
-const uploadSectionExpanded = ref(true)
-
-// Track when both files are selected
-const bothFilesSelected = computed(() => leftFile.value !== null && rightFile.value !== null)
-
-// Auto-collapse upload section when both files are selected
-watch(bothFilesSelected, (selected) => {
-  if (selected) {
-    uploadSectionExpanded.value = false
-  }
-})
+// Use Pinia stores for state management
+const pdfStore = usePdfStore()
+const uiStore = useUiStore()
 
 const { extractMetadata } = usePdfMetadata()
 
+// Auto-collapse upload section when both files are selected
+watch(
+  () => pdfStore.canCompare,
+  (canCompare) => {
+    if (canCompare) {
+      uiStore.collapseUploadSection()
+    }
+  }
+)
+
 const handleLeftFileSelected = async (file: File) => {
-  leftFile.value = file
+  pdfStore.setLeftFile(file)
   try {
-    leftMetadata.value = await extractMetadata(file)
+    const metadata = await extractMetadata(file)
+    pdfStore.setLeftMetadata(metadata)
   } catch (error) {
     console.error('Error extracting left PDF metadata:', error)
-    leftMetadata.value = null
+    pdfStore.setLeftMetadata(null)
   }
 }
 
 const handleRightFileSelected = async (file: File) => {
-  rightFile.value = file
+  pdfStore.setRightFile(file)
   try {
-    rightMetadata.value = await extractMetadata(file)
+    const metadata = await extractMetadata(file)
+    pdfStore.setRightMetadata(metadata)
   } catch (error) {
     console.error('Error extracting right PDF metadata:', error)
-    rightMetadata.value = null
+    pdfStore.setRightMetadata(null)
   }
 }
 
