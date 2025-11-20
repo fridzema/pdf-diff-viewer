@@ -716,13 +716,16 @@
 </template>
 
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import { logger } from '~/utils/logger'
-import type { DiffMode, DiffOptions } from '~/composables/usePdfDiff'
+import type { DiffMode } from '~/composables/usePdfDiff'
 import type { NormalizationStrategy } from '~/composables/usePdfNormalization'
 import { usePdfNormalization } from '~/composables/usePdfNormalization'
 import type { ExportFormat, ExportOptions } from '~/composables/useCanvasExport'
 import { useCanvasExport } from '~/composables/useCanvasExport'
 import type { PdfMetadata } from '~/composables/usePdfMetadata'
+import { useDiffStore } from '~/stores/diff'
+import { useUiStore } from '~/stores/ui'
 
 const props = defineProps<{
   leftFile: File | null
@@ -731,10 +734,23 @@ const props = defineProps<{
   rightMetadata?: PdfMetadata | null
 }>()
 
-const leftCanvasComponent = ref<any>(null)
-const rightCanvasComponent = ref<any>(null)
+type PdfCanvasExpose = {
+  canvas: HTMLCanvasElement | null
+  canvasWrapper: HTMLElement | null
+  isReady: boolean
+  zoom: number
+}
+
+type PdfCanvasInstance = ComponentPublicInstance<Record<string, never>, PdfCanvasExpose>
+
+const leftCanvasComponent = ref<PdfCanvasInstance | null>(null)
+const rightCanvasComponent = ref<PdfCanvasInstance | null>(null)
 const diffCanvas = ref<HTMLCanvasElement | null>(null)
 const originalCanvas = ref<HTMLCanvasElement | null>(null)
+
+// Initialize Pinia stores
+const diffStore = useDiffStore()
+const uiStore = useUiStore()
 
 const { comparePdfsAsync } = usePdfDiffWorker()
 const { renderPdfToCanvas } = usePdfRenderer()
@@ -746,11 +762,23 @@ const { acquire: acquireCanvas, release: releaseCanvas } = useCanvasPool()
 const tempCanvas1 = ref<HTMLCanvasElement | null>(null)
 const tempCanvas2 = ref<HTMLCanvasElement | null>(null)
 
-// Zoom state management
-const sourceZoom = ref(100) // Synced zoom for both source PDFs (100% = 1.0 scale)
-const diffZoom = ref(100) // Independent zoom for difference view
-const diffRenderZoom = ref(100) // Actual rendered zoom of diff canvas
-const isRecomputingDiff = ref(false)
+// Use store state for zoom (now centralized in Pinia)
+const sourceZoom = computed({
+  get: () => diffStore.sourceZoom,
+  set: (value) => diffStore.setSourceZoom(value),
+})
+const diffZoom = computed({
+  get: () => diffStore.diffZoom,
+  set: (value) => diffStore.setDiffZoom(value),
+})
+const diffRenderZoom = computed({
+  get: () => diffStore.diffRenderZoom,
+  set: (value) => diffStore.setDiffRenderZoom(value),
+})
+const isRecomputingDiff = computed({
+  get: () => diffStore.isRecomputingDiff,
+  set: (value) => diffStore.setIsRecomputingDiff(value),
+})
 
 // Debounce diff zoom for smart re-rendering
 const debouncedDiffZoom = useDebounce(
@@ -761,69 +789,114 @@ const debouncedDiffZoom = useDebounce(
 // Track if diff zoom is in debounce period (for CSS-scale fallback)
 const isDiffDebouncing = computed(() => diffZoom.value !== debouncedDiffZoom.value)
 
-// Scroll sync state
-const syncPanningEnabled = ref(true)
+// Use store state for UI features (centralized in UI store)
+const syncPanningEnabled = computed({
+  get: () => uiStore.syncPanningEnabled,
+  set: (value) => uiStore.setSyncPanning(value),
+})
+const sourcePdfsExpanded = computed({
+  get: () => uiStore.sourcePdfsExpanded,
+  set: (_value) => uiStore.toggleSourcePdfs(),
+})
+const advancedSettingsExpanded = computed({
+  get: () => uiStore.advancedSettingsExpanded,
+  set: (_value) => uiStore.toggleAdvancedSettings(),
+})
+const exportExpanded = computed({
+  get: () => uiStore.exportExpanded,
+  set: (_value) => uiStore.toggleExportSection(),
+})
+const activeTab = computed({
+  get: () => uiStore.activeTab,
+  set: (value) => uiStore.setActiveTab(value),
+})
+const swipeModeEnabled = computed({
+  get: () => uiStore.swipeModeEnabled,
+  set: (value) => uiStore.setSwipeMode(value),
+})
+const magnifierEnabled = computed({
+  get: () => uiStore.magnifierEnabled,
+  set: (value) => uiStore.setMagnifier(value),
+})
+const magnifierZoom = computed({
+  get: () => uiStore.magnifierZoom,
+  set: (value) => uiStore.setMagnifierZoom(value),
+})
+const magnifierSize = computed({
+  get: () => uiStore.magnifierSize,
+  set: (value) => uiStore.setMagnifierSize(value),
+})
+const animationEnabled = computed({
+  get: () => uiStore.animationEnabled,
+  set: (value) => uiStore.setAnimation(value),
+})
+const animationSpeed = computed({
+  get: () => uiStore.animationSpeed,
+  set: (value) => uiStore.setAnimationSpeed(value),
+})
+const showingDiff = computed({
+  get: () => uiStore.showingDiff,
+  set: (value) => (uiStore.showingDiff = value),
+})
 
-// Collapsible source PDFs state (open by default)
-const sourcePdfsExpanded = ref(true)
-
-// Collapsible sections state
-const advancedSettingsExpanded = ref(false)
-const exportExpanded = ref(false)
-
-// Active tab for tabbed interface (0 = Settings, 1 = Results, 2 = Metadata)
-const activeTab = ref(0)
-
-// Swipe mode state
-const swipeModeEnabled = ref(false)
-
-// Magnifier state
-const magnifierEnabled = ref(false)
-const magnifierZoom = ref(2.5)
-const magnifierSize = ref(200)
-
-// Animation state (now CSS-based for 50% CPU reduction)
-const animationEnabled = ref(false)
-const animationSpeed = ref(500) // milliseconds
-const showingDiff = ref(true)
+// Local state for animation interval (not in store as it's transient)
 const animationIntervalId = ref<number | null>(null)
-const originalImageData = ref<Uint8ClampedArray | null>(null) // Keep for storing original data
 
-// Normalization state
-const normalizationStrategy = ref<NormalizationStrategy>({
-  type: 'largest',
-  alignment: 'top-left',
-  backgroundColor: '#ffffff',
-  scaleToFit: false,
+// Use store state for original image data (centralized in Diff store)
+const originalImageData = computed({
+  get: () => diffStore.originalImageData,
+  set: (value) => value && diffStore.setOriginalImageData(value),
 })
 
-const dimensionInfo = ref<{
-  canvas1: { width: number; height: number }
-  canvas2: { width: number; height: number }
-  targetWidth: number
-  targetHeight: number
-} | null>(null)
-
-const diffOptions = ref<DiffOptions>({
-  mode: 'pixel',
-  threshold: 10,
-  overlayOpacity: 0.5,
-  useGrayscale: false,
+// Use store state for normalization strategy (centralized in Diff store)
+const normalizationStrategy = computed({
+  get: () => diffStore.normalizationStrategy,
+  set: (value: Partial<NormalizationStrategy>) => diffStore.setNormalizationStrategy(value),
 })
 
-// Export state
-const exportFormat = ref<ExportFormat>('png')
-const exportQuality = ref(0.95) // JPEG quality (0-1)
-const exportIncludeMetadata = ref(true)
-const isExporting = ref(false)
-const exportSuccess = ref(false)
-const copySuccess = ref(false)
+// Use store state for dimension info (centralized in Diff store)
+const dimensionInfo = computed({
+  get: () => diffStore.dimensionInfo,
+  set: (value) => value && diffStore.setDimensionInfo(value),
+})
 
-const stats = ref<{
-  differenceCount: number
-  totalPixels: number
-  percentDiff: number
-} | null>(null)
+// Use store state for diff options (centralized in Diff store)
+const diffOptions = computed({
+  get: () => diffStore.diffOptions,
+  set: (value) => (diffStore.diffOptions = value),
+})
+
+// Use store state for export settings (centralized in UI store)
+const exportFormat = computed({
+  get: () => uiStore.exportFormat,
+  set: (value: ExportFormat) => uiStore.setExportFormat(value),
+})
+const exportQuality = computed({
+  get: () => uiStore.exportQuality,
+  set: (value) => uiStore.setExportQuality(value),
+})
+const exportIncludeMetadata = computed({
+  get: () => uiStore.exportIncludeMetadata,
+  set: (value) => uiStore.setExportIncludeMetadata(value),
+})
+const isExporting = computed({
+  get: () => uiStore.isExporting,
+  set: (value) => uiStore.setIsExporting(value),
+})
+const exportSuccess = computed({
+  get: () => uiStore.exportSuccess,
+  set: (value) => uiStore.setExportSuccess(value),
+})
+const copySuccess = computed({
+  get: () => uiStore.copySuccess,
+  set: (value) => uiStore.setCopySuccess(value),
+})
+
+// Use store state for comparison stats (centralized in Diff store)
+const stats = computed({
+  get: () => diffStore.stats,
+  set: (value) => value && diffStore.setStats(value),
+})
 
 const canCompare = computed(() => {
   const result = props.leftFile !== null && props.rightFile !== null

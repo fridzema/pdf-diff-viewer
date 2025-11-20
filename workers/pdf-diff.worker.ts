@@ -6,7 +6,7 @@
  * to eliminate code duplication and ensure consistency.
  */
 
-import type { DiffOptions } from '~/lib/pdfDiffAlgorithms'
+import type { DiffOptions } from '../lib/pdfDiffAlgorithms'
 import {
   pixelDiff,
   thresholdDiff,
@@ -14,7 +14,7 @@ import {
   overlayDiff,
   heatmapDiff,
   semanticDiff,
-} from '~/lib/pdfDiffAlgorithms'
+} from '../lib/pdfDiffAlgorithms'
 
 interface WorkerMessage {
   imageData1: Uint8ClampedArray

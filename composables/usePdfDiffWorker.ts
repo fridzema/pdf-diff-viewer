@@ -4,6 +4,7 @@ import type { NormalizationStrategy } from './usePdfNormalization'
 import { usePdfNormalization } from './usePdfNormalization'
 import { ErrorType, createAppError } from '~/utils/errorHandler'
 import { logger } from '~/utils/logger'
+import PdfDiffWorker from '~/workers/pdf-diff.worker.ts?worker'
 
 /**
  * Composable for using Web Worker for PDF diff computation
@@ -25,9 +26,7 @@ export function usePdfDiffWorker() {
 
     if (!worker.value) {
       try {
-        worker.value = new Worker(new URL('~/workers/pdf-diff.worker.ts', import.meta.url), {
-          type: 'module',
-        })
+        worker.value = new PdfDiffWorker()
       } catch (error) {
         logger.error('Failed to initialize PDF diff worker:', error)
         return false
