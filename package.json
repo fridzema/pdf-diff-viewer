@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@nuxt/eslint-config": "^1.10.0",
-    "@types/node": "^20.19.25",
+    "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vitest/coverage-v8": "^4.0.10",
     "@vitest/ui": "^4.0.10",
