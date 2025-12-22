@@ -2,7 +2,7 @@
 # Optimized for production deployment with Bun + Nuxt 3
 
 # Stage 1: Dependencies
-FROM oven/bun:1.3.2-alpine AS deps
+FROM oven/bun:1.3.5-alpine AS deps
 WORKDIR /app
 
 # Copy package files
@@ -12,7 +12,7 @@ COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile --production=false
 
 # Stage 2: Builder
-FROM oven/bun:1.3.2-alpine AS builder
+FROM oven/bun:1.3.5-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -25,7 +25,7 @@ COPY . .
 RUN bun run build
 
 # Stage 3: Production runner
-FROM oven/bun:1.3.2-alpine AS runner
+FROM oven/bun:1.3.5-alpine AS runner
 WORKDIR /app
 
 # Set NODE_ENV to production
